@@ -1,0 +1,34 @@
+{
+  "time": "2026-09-05T03:21:45.472Z",
+  "buildId": "wqDEzQ44xtOV3-Ek6dtI0",
+  "frontend": "components/xuemai-workbench/XuemaiWorkbenchApp.tsx",
+  "removed": [
+    "components/xuemai-live/Workspace.tsx",
+    "components/xuemai-live/workspace.css"
+  ],
+  "tests": 46,
+  "browser": [
+    "原版真实登录",
+    "原版学生表单保存",
+    "课堂生成及修订",
+    "反馈生成及剪贴板核对",
+    "手工标记已发",
+    "独立入档及刷新",
+    "原版PNG上传及分析",
+    "学生档案真实追问",
+    "生产版重启后数据保留"
+  ],
+  "mobile": {
+    "width": 390,
+    "height": 844,
+    "detailWidth": 390,
+    "detailX": 0
+  },
+  "consoleErrors": [],
+  "limitations": [
+    "真实教师课堂UAT未执行",
+    "原版批量处理和自动班级拆分未接通",
+    "规则只保存不执行定时调度",
+    "侧聊仅在当前页面保留"
+  ]
+}
