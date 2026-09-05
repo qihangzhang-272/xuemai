@@ -12,6 +12,10 @@ supabase/.branches
 supabase/.temp
 .vercel
 .lessonledger-data
+.xuemai-data/
+.xuemai-test-*/
+output/
+.local-access.txt
 
 # Local planning and review artifacts
 docs/audits/

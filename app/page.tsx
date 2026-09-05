@@ -1,5 +1,5 @@
-import { XuemaiWorkbenchApp } from "@/components/xuemai-workbench/XuemaiWorkbenchApp";
+import { Workspace } from "@/components/xuemai-live/Workspace";
 
 export default function HomePage() {
-  return <XuemaiWorkbenchApp />;
+  return <Workspace />;
 }

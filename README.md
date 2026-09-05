@@ -1,125 +1,104 @@
-# 学脉（Xuemai）
+# 学脉 · 独立教学服务工作台
 
-学脉是面向小学到高中学科类独立老师和教培机构的微信式 AI 教学服务工作台。
+面向老师的网页应用，沿用学脉的学生会话与绿色工作台设计。核心流程为：记录课堂 / 上传材料 → AI 整理 → 老师检查 → 家长反馈 → 复制到微信 → 手工标记已发 → 确认入档 → 月报复用。
 
-产品以学生为主线，把课堂记录、学生学习材料、学情分析、家长微信沟通、学生档案和月报连接起来。当前产品范围、页面、流程和验收标准统一以[产品需求文档](docs/product/product-requirements.md)为准。
+本项目有自己的 Git、账号、数据库、上传目录和启动入口。可关闭原教学项目，学脉的独立账号与已导入数据仍可使用。AI 与文档解析需要联网访问已配置的模型 / MinerU 服务。
 
-Teaching Agent OS 是内部架构名称，不是用户可见的产品名称。
+## 快速启动
 
-## 技术栈
+需要 **Node.js 24 或更新版本**，使用其内置 SQLite，不需要安装 PostgreSQL、Redis 或 Supabase。
 
-- Next.js App Router
-- TypeScript
-- Tailwind CSS
-- shadcn/ui 风格本地组件
-- lucide-react
-- 后续接 Supabase Auth / Supabase Postgres
-- 通过服务端 API route 调用 AI
-- Vercel 部署
-
-## 仓库结构
-
-| 目录 | 用途 |
-|---|---|
-| `app/` | Web 页面与服务端路由 |
-| `components/` | Web 通用组件和产品组件 |
-| `src/` | Skill、工作流、数据与领域能力 |
-| `lib/` | Web 侧工具和轻量业务适配 |
-| `mobile/` | 移动端 Expo 应用 |
-| `supabase/` | 数据库迁移和检查 |
-| `tests/` | 自动化测试 |
-| `docs/` | 正式项目文档与导航 |
-| `public/` | 静态资源 |
-
-文件和目录命名约定见 [CONTRIBUTING.md](CONTRIBUTING.md)，代码完成与合入条件见[代码验收标准](docs/development/code-acceptance-criteria.md)。
-
-## 本地运行
-
-```bash
-npm install
-npm run dev
+```powershell
+npm ci
+Copy-Item .env.example .env.local
+# 编辑 .env.local，填写自己的模型及文档解析配置
+npm run build
+npm start
 ```
 
-访问 `http://127.0.0.1:3016/dashboard`。`npm run dev` 已固定映射到 `dev:stable`，会先释放旧的 3016 监听并清理 `.next`，避免本地预览残留。
+访问 **http://127.0.0.1:3016**。Windows 也可以运行 `./start.ps1`；它在缺少依赖或构建时先完成安装 / 构建，再启动。启动程序不会清理或终止其他占用端口的服务。
 
-如果只想停止本项目预览监听：
+开发使用 `npm run dev`。不要同时运行开发实例与生产实例，也不要在开发实例运行时重建 `.next`。
 
-```bash
-npm run dev:stop
-```
+这台电脑上的 `.env.local` 已复用现有项目的千问 / MinerU 服务配置。源码压缩包不会携带凭据。体验账号在 Git 忽略的 `.local-access.txt` 中；页面中“演示”学生及课堂记录均为合成测试内容。正式使用可以在登录页创建一个自己的学脉账号，账号之间数据隔离。
 
-除非排查 Next.js 本身问题，否则不要直接使用 `npm run dev:raw`。
+## 已实现的工作流
 
-## 当前 AI 工具
+- 独立账号注册、登录、退出；也可用原教学后端教师账号登录。
+- 学生、班级新建与编辑，学生可加入多个班级，学生 / 班级搜索。
+- 课堂记录、AI 备课、学生学习材料分析；原输入在调用模型前保存，失败保留来源且支持重试。
+- PNG / JPEG / WebP 图片、PDF、DOCX、PPTX、UTF-8 TXT / Markdown；每份不超过 20 MB，一次最多 5 份材料。
+- 原始材料下载、AI 原稿与老师修订版本对照。
+- 家长反馈生成、修订、复制与手工标记已发。应用不会给任何微信联系人自动发消息。
+- 学生档案确认与不可变正文快照；修改已发送或已入档正文需要另建记录。
+- 月份选择与学生月报，引用当月已入档的课堂 / 分析记录，保留来源记录列表。
+- 班级课堂背景转逐学生独立草稿；可排除缺席学生和补充个人观察，逐位检查与确认。
+- 工作台真实统计、待反馈清单、已入档清单与最近服务记录。
+- 老师偏好、原教学后端班级导入与学情查看、记录 JSON 导出和本机备份。
+- 桌面三栏工作台与手机网页布局。
 
-- 识别模块：`lib/ai/practice-recognition.ts`
-- 反馈模块：`lib/ai/wechat-feedback.ts`
-- 识别 API：`POST /api/ai/practice-recognition`
-  - 必填输入：`studentName`、`subject`、`images`
-  - 图片规则：最少 1 张，最多 9 张，支持 PNG / JPG / WebP，使用 data URL 传入。
-  - 输出：可编辑的练习类型、题目信息、分数/表现、错误原因、建议和月度总结素材。
-- 反馈 API：`POST /api/ai/wechat-feedback`
-  - 必填输入：`studentName`、`subject`、`correctedDraft`
-  - 可选输入：`parentName`、`grade`、`materialTitle`、`scoreText`、`teacherNotes`、`nextPlan`、`tone`
-  - 输出：微信反馈草稿，以及用于保存的月度总结素材。
+空白试卷和教材不作为个体能力证据；老师补充并明确核实学生表现后才允许反馈及入档。AI 生成内容仍需教师检查。
 
-## 当前原型工作台
+## 与原教学项目的关系
 
-访问 `/students/demo-student-1/feedback/new` 可以试用第一版闭环：
+复制复用的能力：MDT 的 MinerU 解析器、文件安全校验、UTF-8 正文质量校验、密码散列与校验。新项目沿用千问兼容接口配置及单任务、失败可追溯的实现原则，未复制旧项目数据库。
 
-```txt
-上传练习图片 -> AI 识别 -> 老师校正 -> 生成微信反馈 -> Mock 保存
-```
+可选 MDT 连接只用于原账号登录以及 **GET 读取**：
 
-这个闭环目前用于验证 Parent Feedback Agent 的产品流程。后续应接入 `src/agents/` 中的 Agent Registry、Shared Harness Core、运行日志和数据库生命周期，而不是继续扩展成一次性页面逻辑。
+| 用途 | 原后端接口 |
+| --- | --- |
+| 登录 | `/api/auth/csrf`、`/api/auth/callback/credentials`、`/api/auth/session` |
+| 班级列表 | `/api/teacher/classes` |
+| 学生及作答统计 | `/api/teacher/classes/{classId}/analytics/students` |
 
-真实 AI 调用需要在 `.env.local` 配置：
+在“我的 → 教学后端”连接后，点击“读取班级列表”，按班级主动导入。导入到学脉的是独立副本，重复导入不会覆盖老师在学脉修改的资料；不会复制虚构的学情记录，也不会回写 MDT。统计页展示原后端真实统计，不把统计表自动写入学生档案。
 
-```bash
-AI_PROVIDER=deepseek
-AI_BASE_URL=https://api.deepseek.com
-AI_API_KEY=<your_deepseek_api_key>
-AI_MODEL=deepseek-v4-flash
-```
+本期本地备课、课堂记录、反馈和月报全部由学脉服务完成。不会为了调用旧出题接口而在原数据库创建课节。
 
-## 第一阶段可验收路由
+## 配置与数据
 
-- `/`
-- `/login`
-- `/dashboard`
-- `/classes`
-- `/classes/new`
-- `/students`
-- `/students/new`
-- `/students/demo-student-1`
-- `/students/demo-student-1/feedback/new`
-- `/api/ai/practice-recognition`
-- `/api/ai/wechat-feedback`
-- `/settings`
+| 配置 | 说明 |
+| --- | --- |
+| `QWEN_API_KEY / QWEN_BASE_URL / QWEN_MODEL` | 千问兼容模型，支持图文输入 |
+| `MINERU_API_TOKEN / MINERU_API_BASE_URL` | PDF / DOCX / PPTX 解析 |
+| `MDT_BASE_URL` | 可选原教学后端地址 |
+| `XUEMAI_DATA_DIR` | 默认 `.xuemai-data`，包含 SQLite、上传原件和解析工件 |
+| `XUEMAI_HTTPS / XUEMAI_ORIGIN` | 在 HTTPS 反向代理环境中按实际来源配置 |
 
-## 检查命令
+所有密钥仅在服务端读取，浏览器只收到必要业务数据。源码和构建不依赖其他项目目录。`.xuemai-data` 必须放在持久磁盘，不应使用临时或只读托管文件系统。
 
-```bash
-npm run lint
+`npm run backup` 将数据库和材料备份到 `output/backups/时间戳`。完整备份建议在没有处理中的上传 / AI 任务时执行。恢复时先停止学脉，在新数据目录放入备份文件，再设置 `XUEMAI_DATA_DIR` 指向该目录；不覆盖或删除旧数据。JSON 导出用于资料留存，不包含原文件二进制，不等于完整备份。
+
+## 验证命令
+
+```powershell
 npm run typecheck
+npm run lint
+npm test
 npm run build
 ```
 
-## 项目文档入口
+默认测试覆盖本期独立项目规则和复制的 MinerU 解析器。`npm run test:source` 可运行压缩包保留的全部历史研究 / 原型测试；这不代表对应功能被纳入本期。
 
-- [文档导航](docs/README.md)
-- [当前产品 PRD V5.4.1](docs/product/product-requirements.md)
-- [代码验收标准 V1.0](docs/development/code-acceptance-criteria.md)
+真实端到端检查需要启动服务并配置可用模型，会产生少量模型调用：
 
-正式文档使用稳定文件名，版本号记录在文档内部；历史稿、截图、审计过程和个人开发日志不作为仓库默认入口。
+```powershell
+# 不指定账号时，脚本自动创建临时本机账号并保存到 .local-access.txt
+npm run test:smoke
+# 仓库已附带合成测试素材，使用同一验收账号
+$env:XUEMAI_SMOKE_USER = '你的验收账号'
+$env:XUEMAI_SMOKE_PASSWORD = '你的验收密码'
+npm run test:materials
+# MDT 连接只读验收
+$env:MDT_TEST_IDENTIFIER = '你的原教学后端教师账号'
+$env:MDT_TEST_PASSWORD = '你的原教学后端教师密码'
+npm run test:mdt
+```
 
-## 当前阶段边界
+验收结果位于 `output/http-smoke.json`、`output/material-smoke.json`、`output/mdt-smoke.json` 和 `output/qa/`。范围与开发依据见 `docs/implementation/开发计划.md`；最终验收事实见 `docs/implementation/验收报告.md`。
 
-- 只做老师端。
-- 登录页为临时免登录 UI。
-- 所有数据来自 `lib/mock/data.ts`。
-- 运行时暂不接 Supabase；已新增 Supabase migration，等待人工执行和后续 API 接入。
-- 已提供服务端微信反馈生成工具；当前 UI 仍以 mock 展示为主。
-- 默认模型提供方是 DeepSeek；模型层通过 OpenAI-compatible client 调用，配置统一读取 `AI_PROVIDER`、`AI_BASE_URL`、`AI_API_KEY` 和 `AI_MODEL`。
-- `src/agents/` 已建立长期 Agent 架构骨架，后续 Phase 应优先接入 Harness Core 和数据生命周期。
-- 不做家长端、学生端、小程序、支付、自动 OCR 批改、复杂教务系统。
+## 当前交付边界
+
+本期覆盖会议收敛后的教学服务闭环，不包含完整 PRD 中的微信消息直连、机构角色协作、小程序、排课收费、自动批改或出题。旧前端中的这些演示页面 / API 已在当前入口禁用，保留源码只为追溯。
+
+这是适合单机、单实例使用的独立项目。SQLite 不用于多实例共享写入；AI 请求和文档任务在当前服务中执行，中断超过 12 分钟后显示失败供重试。本轮没有部署公网，没有宣称完成真实教师课堂 UAT。

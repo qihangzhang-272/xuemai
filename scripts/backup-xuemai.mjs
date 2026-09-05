@@ -1,0 +1,14 @@
+import { DatabaseSync } from 'node:sqlite';
+import { mkdirSync, cpSync, existsSync } from 'node:fs';
+import path from 'node:path';
+if(existsSync('.env.local')) process.loadEnvFile('.env.local');
+const root=path.resolve(process.env.XUEMAI_DATA_DIR||'.xuemai-data');
+if(!existsSync(path.join(root,'xuemai.sqlite'))) throw new Error('学脉数据库尚未创建');
+const destination=path.resolve('output/backups',new Date().toISOString().replace(/[:.]/g,'-'));
+mkdirSync(destination,{recursive:true});
+const database=new DatabaseSync(path.join(root,'xuemai.sqlite'));
+database.prepare('VACUUM INTO ?').run(path.join(destination,'xuemai.sqlite'));
+database.close();
+for(const directory of ['uploads','artifacts']) if(existsSync(path.join(root,directory))) cpSync(path.join(root,directory),path.join(destination,directory),{recursive:true,errorOnExist:true});
+console.log(`备份已保存：${destination}`);
+console.log('此备份包含全部本机账号和材料。完整备份建议在无上传或生成任务运行时执行。');

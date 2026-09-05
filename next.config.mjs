@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
+  serverExternalPackages: ["node:sqlite"],
   devIndicators: false,
   experimental: {
     // Next 15's dev segment explorer can intermittently break the app-router
