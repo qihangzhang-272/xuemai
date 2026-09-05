@@ -29,6 +29,13 @@ async function observed(contactId = student.id) {
   return recordAction(teacher.id, draft.id, { action: "edit", revision: draft.revision, content: "学生经提示后能正确约分，这是本次课堂观察。", evidenceConfirmed: true });
 }
 describe("学脉独立闭环", () => {
+  it("材料分析不能把仅用于备课的 teaching 类型保存为正常结果", () => {
+    const analysis = { ...record(), kind: "analysis" } as LearningRecord;
+    const result = { title: "学生订正分析", content: "学生先写出 6/20，经老师提示后订正为 3/10。", evidence: "teaching" };
+    expect(() => parseAiOutput(JSON.stringify(result), analysis, false)).toThrow("证据类型");
+    expect(parseAiOutput(JSON.stringify({ ...result, evidence: "observed" }), analysis, false).evidence).toBe("observed");
+    expect(parseAiOutput(JSON.stringify({ ...result, content: "空白练习，无学生学习痕迹。", evidence: "insufficient" }), analysis, false).evidence).toBe("insufficient");
+  });
   it("密码保留首尾空格并按字节限制，不默默更改老师凭据", () => {
     expect(readPassword(" secret123 ")).toBe(" secret123 ");
     expect(() => readPassword("密".repeat(25))).toThrow("72 字节");

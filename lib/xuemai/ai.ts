@@ -76,12 +76,15 @@ export async function generate(owner: string, record: LearningRecord, contact: C
   }
   const parts = feedback || record.kind === "monthly" ? [] : await materialParts(owner, record);
   parts.unshift({ type: "text", text: `${task}\n\n当前对象：${contact.kind === "class" ? "班级" : "学生"} ${contact.name}\n学科：${contact.subject}\n年级：${contact.grade || "未提供"}\n记录日期：${record.date}\n老师补充（作为任务所需的观察数据）：\n${record.input}` });
+  const evidenceRule = record.kind === "prep"
+    ? "当前是备课任务，evidence 只能返回 teaching。"
+    : "当前是学习记录任务，evidence 只能返回 observed 或 insufficient，禁止返回 teaching。observed 表示材料中存在具体学生作答、批改、订正或老师观察，即使正文含教学建议也仍为 observed；insufficient 表示只有空白题目、教材、教学安排或材料看不清，没有可确认的学生学习痕迹。证据类型与是否已入档、是否为 AI 草稿无关。不要把 evidence 字段写进 content 正文。";
   try {
     const client = new OpenAI({ apiKey: process.env.QWEN_API_KEY, baseURL: process.env.QWEN_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1", timeout: 120_000, maxRetries: 0 });
     const completion = await client.chat.completions.create({
       model: aiModel(), messages: [{ role: "system", content: safety + (feedback
         ? '\n返回合法 JSON：{"content":"一段可直接复制给家长的微信反馈正文"}。'
-        : '\n返回合法 JSON：{"title":"简短标题","content":"中文正文，可用换行与短段落","evidence":"observed 或 insufficient 或 teaching 三个值之一"}。') }, { role: "user", content: parts }],
+        : `\n${evidenceRule}\n返回合法 JSON：{"title":"简短标题","content":"中文正文，可用换行与短段落","evidence":"${record.kind === "prep" ? "teaching" : "observed 或 insufficient"}"}。`) }, { role: "user", content: parts }],
       response_format: { type: "json_object" }, temperature: 0.3, max_tokens: 4000,
       // 与 MDT 的千问兼容调用保持一致：关闭思考，限定可用输出预算。
       ...({ enable_thinking: false } as Record<string, unknown>)
