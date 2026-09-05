@@ -1,0 +1,33 @@
+{
+  "ok": true,
+  "time": "2026-09-05T01:29:00.570Z",
+  "draftPreservedAcrossNavigation": true,
+  "mobilePages": [
+    {
+      "page": "工作台",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "page": "学生",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "page": "班级",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "page": "我的",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "page": "会话",
+      "scrollWidth": 390,
+      "width": 390
+    }
+  ],
+  "errors": []
+}

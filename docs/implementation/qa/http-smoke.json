@@ -1,0 +1,53 @@
+{
+  "ok": true,
+  "time": "2026-09-05T01:26:43.224Z",
+  "checks": [
+    "GET state: 401",
+    "POST auth: 200",
+    "POST contacts: 200",
+    "POST contacts: 200",
+    "POST contacts: 400",
+    "POST contacts: 404",
+    "POST records: 400",
+    "POST records: 200",
+    "PATCH records/f6fca768-3739-4506-980b-511ef36e3137: 200",
+    "PATCH records/f6fca768-3739-4506-980b-511ef36e3137: 409",
+    "PATCH records/f6fca768-3739-4506-980b-511ef36e3137: 200",
+    "PATCH records/f6fca768-3739-4506-980b-511ef36e3137: 200",
+    "PATCH records/f6fca768-3739-4506-980b-511ef36e3137: 200",
+    "PATCH records/f6fca768-3739-4506-980b-511ef36e3137: 200",
+    "PATCH records/f6fca768-3739-4506-980b-511ef36e3137: 200",
+    "PATCH records/f6fca768-3739-4506-980b-511ef36e3137: 400",
+    "POST records: 200",
+    "POST records: 200",
+    "PATCH records/ad959d66-2df9-40c7-bafe-2ce820c2e3b7: 200",
+    "POST records: 200",
+    "PATCH records/a627b858-f58d-4b5c-b1cc-e61c79eb897c: 200",
+    "PATCH records/a627b858-f58d-4b5c-b1cc-e61c79eb897c: 400",
+    "PATCH records/a627b858-f58d-4b5c-b1cc-e61c79eb897c: 400",
+    "POST records: 200",
+    "PATCH records/a82f5b1b-4dff-4851-a853-593ca0227d58: 200",
+    "POST auth: 200",
+    "PATCH records/f6fca768-3739-4506-980b-511ef36e3137: 404",
+    "GET attachments/f6711393-97f9-49d7-8495-4807ede12dec: 404",
+    "GET state: 200",
+    "GET export: 200",
+    "GET state: 200"
+  ],
+  "additionalChecks": [
+    "独立账号与数据隔离",
+    "过期版本拒绝",
+    "月报仅使用入档快照",
+    "备课不能入学生档案",
+    "跨站写入拒绝",
+    "原型 API 禁用",
+    "真实模型5条工作流"
+  ],
+  "identifiers": {
+    "studentId": "1bb070d8-79ba-4be0-b9ef-87eee181d0f5",
+    "classId": "de76f94e-4aa2-4ffd-b25b-027b3c8ff30e",
+    "recordId": "f6fca768-3739-4506-980b-511ef36e3137",
+    "monthlyId": "ad959d66-2df9-40c7-bafe-2ce820c2e3b7",
+    "analysisId": "a82f5b1b-4dff-4851-a853-593ca0227d58"
+  }
+}

@@ -1,0 +1,42 @@
+[
+  {
+    "file": "student-work.pdf",
+    "recordId": "9d5cc06c-801b-4de1-a568-2047fd9bd99e",
+    "status": "ready",
+    "evidence": "observed",
+    "elapsedMs": 15314,
+    "title": "六年级数学分数乘法作业分析"
+  },
+  {
+    "file": "student-work.png",
+    "recordId": "46370409-83f0-47e8-8195-8373c10d4c90",
+    "status": "ready",
+    "evidence": "observed",
+    "elapsedMs": 2182,
+    "title": "分数乘法与约分订正分析"
+  },
+  {
+    "file": "blank-worksheet.png",
+    "recordId": "1a4050be-94d2-4a15-bff2-12e98b29ee90",
+    "status": "ready",
+    "evidence": "insufficient",
+    "elapsedMs": 1321,
+    "title": "分数乘法练习卷（空白）"
+  },
+  {
+    "file": "lesson-outline.docx",
+    "recordId": "e4b08a8d-78c4-4d2c-81d7-e01d4101055a",
+    "status": "ready",
+    "evidence": "teaching",
+    "elapsedMs": 16183,
+    "title": "六年级分数乘法备课建议"
+  },
+  {
+    "file": "lesson-slides.pptx",
+    "recordId": "b9c168e6-fa30-4718-a79f-4ed0da7143dc",
+    "status": "ready",
+    "evidence": "teaching",
+    "elapsedMs": 17359,
+    "title": "六年级分数乘法概念与简化讲解备课"
+  }
+]

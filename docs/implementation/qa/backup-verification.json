@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "time": "2026-09-05T01:25:59.365Z",
+  "backup": "C:\\Users\\Administrator\\Desktop\\AI\\codex\\xuemai\\output\\backups\\2026-09-05T01-24-16-527Z",
+  "integrity": "ok",
+  "counts": {
+    "users": 3,
+    "sessions": 7,
+    "entities": 26
+  },
+  "files": 15,
+  "filesSha256Match": true
+}
