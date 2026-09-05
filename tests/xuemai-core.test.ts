@@ -29,6 +29,11 @@ async function observed(contactId = student.id) {
   return recordAction(teacher.id, draft.id, { action: "edit", revision: draft.revision, content: "学生经提示后能正确约分，这是本次课堂观察。", evidenceConfirmed: true });
 }
 describe("学脉独立闭环", () => {
+  it("原版表单的服务规则可持久保存，更新姓名不丢失规则", () => {
+    const contact = saveContact(teacher.id, { kind: "student", name: "规则测试", subject: "数学", serviceRules: { learningGoal: "核对约分步骤", needsFeedback: true, arbitrary: "忽略" } });
+    const updated = saveContact(teacher.id, { id: contact.id, kind: "student", name: "规则测试改名", subject: "数学" });
+    expect(get(teacher.id, "contact", updated.id).serviceRules).toEqual({ learningGoal: "核对约分步骤", needsFeedback: true });
+  });
   it("材料分析不能把仅用于备课的 teaching 类型保存为正常结果", () => {
     const analysis = { ...record(), kind: "analysis" } as LearningRecord;
     const result = { title: "学生订正分析", content: "学生先写出 6/20，经老师提示后订正为 3/10。", evidence: "teaching" };

@@ -26,6 +26,7 @@ export type Conversation = {
   accent: "green" | "orange" | "blue" | "red";
   attention?: boolean;
   members?: number;
+  serviceRules?: Partial<CreationPayload>;
 };
 
 export type Message = {

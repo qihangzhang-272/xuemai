@@ -43,7 +43,7 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
     setDraft(fieldValue);
   }, [fieldValue]);
 
-  const canEdit = !running && task.status !== "archived";
+  const canEdit = !running && task.status !== "archived" && task.structuredResult?.locked !== true;
   const hasDraftChange = draft.trim() !== fieldValue.trim();
 
   function handleEditorToggle() {
@@ -114,6 +114,7 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
               <button
                 key={action.value}
                 type="button"
+                disabled={hasDraftChange}
                 onClick={() => onAction(task, action.value)}
                 className={cn(
                   "inline-flex h-8 items-center gap-1 rounded-full px-3 text-[12px] font-bold transition",
@@ -239,7 +240,7 @@ function getPreview(task: TaskCard) {
 }
 
 function getActions(task: TaskCard): Array<{ label: string; value: SkillAction; primary?: boolean; soft?: boolean; icon?: React.ReactNode }> {
-  if (task.actions?.length) {
+  if (task.actions) {
     return task.actions.map((action) => ({
       label: skillActionLabels[action],
       value: action,
@@ -276,16 +277,6 @@ function getActions(task: TaskCard): Array<{ label: string; value: SkillAction; 
 }
 
 function normalizeChatCardAction(task: TaskCard, action: { label: string; value: SkillAction; primary?: boolean; soft?: boolean; icon?: React.ReactNode }) {
-  if ((task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis") && action.value === "generate_feedback") {
-    return {
-      ...action,
-      label: "复制微信反馈",
-      value: "copy_feedback" as SkillAction,
-      primary: true,
-      soft: false,
-      icon: <Copy size={13} />
-    };
-  }
   if ((task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis") && action.value === "archive") {
     return {
       ...action,

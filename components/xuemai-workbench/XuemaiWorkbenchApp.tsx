@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { ImagePlus, Plus, Search, UserRound, UsersRound, X } from "lucide-react";
 import { AutomationAssistantEmptyState, ChatHeader, Composer, ConfirmTaskCard, EmptyConversationState, MessageRow } from "./ChatParts";
@@ -16,28 +16,28 @@ import { WorkOverviewPanel } from "./WorkOverviewPanel";
 import { SideChatPanel } from "./SideChatPanel";
 import { StudentDetailModal } from "./StudentDetailModal";
 import { TaskReviewWorkspace } from "./TaskReviewWorkspace";
-import { createSteps, createTaskResult, detectIntent, getTaskTitle, nowIso, uid } from "./chat-engine";
-import { initialState } from "./mock-data";
-import { loadStoredState, saveStoredState, storageKey } from "./storage";
-import type { ActiveDrawer, Conversation, CreationMode, CreationPayload, Message, ProfileUpdateRecord, SideChatContextOption, SideChatContextType, SideChatSession, SkillAction, SmartInputAction, TaskCard, TaskStep, TaskType, TeacherProfile, TimelineRecord, UserPreferences, WorkspaceMode } from "./types";
-import { archiveTaskCardCurrentOutput, editArchivedTaskCardEditableValue, editTaskCardEditableValue, getSkillCardVersionMeta, resetTaskCardEditableOutput } from "./skill-card-version";
-import { applyTaskSkillRunnerAction } from "./skill-runner-adapter";
-import { getLearningEvidenceReport } from "./learning-evidence-report-view";
-import { buildLearningEvidenceArchiveSummary, getDefaultProfileUpdateSelection, getSelectedLearningEvidenceProfileUpdates } from "./learning-evidence-profile-updates";
+import { detectIntent, nowIso, uid } from "./chat-engine";
+import { backend, emptyState as initialState, isFeedback, recordId, toChatState } from "./backend-adapter";
+import type { Attachment, Contact, LearningRecord, Snapshot } from "@/lib/xuemai/types";
+import type { ActiveDrawer, Conversation, CreationMode, CreationPayload, Message, SideChatContextOption, SideChatContextType, SideChatSession, SkillAction, SmartInputAction, TaskCard, TaskType, TeacherProfile, TimelineRecord, UserPreferences, WorkspaceMode } from "./types";
+
+
+
+
 import { getSkillByTriggerLabel, getSkillsForSubject } from "@/src/skills/registry";
-import { mapSkillToTaskType, runMockSkill } from "@/src/skills/runner";
-import { createEditableSkillCardState } from "@/src/skills/actions";
+
+
 import type { SkillId, SkillSubjectType } from "@/src/skills/types";
 import { cn } from "@/lib/utils";
-import { getMonthlyReport, isMonthlyReportTask } from "./monthly-report-view";
-import { allSubjectsLabel, cleanSubjectPlaceholderText, getSelectedSubjectTrack, getSkillSubjectLabel, getSubjectSummaryLabel, getSubjectTracks, normalizeSubjectText, splitSubjectText } from "./subject-utils";
+
+import { allSubjectsLabel, cleanSubjectPlaceholderText, getSelectedSubjectTrack, getSkillSubjectLabel, getSubjectSummaryLabel, getSubjectTracks, normalizeSubjectText } from "./subject-utils";
 
 const sideWorkspaceMinWidth = 360;
 const sideWorkspaceMaxWidth = 1080;
 const sideWorkspaceDefaultWidth = 560;
-const maxComposerAttachments = 9;
-const maxComposerFileSizeBytes = 8 * 1024 * 1024;
-const allowedComposerFileTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+
+
 
 const automationTemplates: AutomationTemplate[] = [
   {
@@ -94,47 +94,51 @@ export function XuemaiWorkbenchApp() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const taskTimersRef = useRef<Record<string, number>>({});
-  const finalizedTaskIdsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    try {
-      const stored = loadStoredState();
-      const conversationsWithSubjectTracks = hydrateSeedSubjectTracks(stored.conversations);
-      setConversations(conversationsWithSubjectTracks);
-      setMessages(stored.messages);
-      setTaskCards(stored.taskCards);
-      setTimelineRecords(stored.timelineRecords);
-      setPreferences(stored.preferences);
-      setTeacher(stored.teacher);
-      if (stored.currentConversationId && conversationsWithSubjectTracks.some((item) => item.id === stored.currentConversationId)) {
-        setActiveId(stored.currentConversationId);
-      }
-    } catch {
-      setConversations(initialState.conversations);
-      setMessages(initialState.messages);
-      setTaskCards(initialState.taskCards);
-      setTimelineRecords(initialState.timelineRecords);
-      setPreferences(initialState.preferences);
-      setTeacher(initialState.teacher);
-      setActiveId(initialState.currentConversationId ?? "student-wang");
-    } finally {
-      setHasLoadedStorage(true);
+  const snapshotRef = useRef<Snapshot | null>(null);
+  const pendingRef = useRef(new Set<string>());
+  const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const refreshBackend = useCallback(async () => {
+    const response = await fetch("/api/xuemai/state", { cache: "no-store" });
+    if (response.status === 401) {
+      snapshotRef.current = null; setTeacher(null); setConversations(initialState.conversations);
+      setMessages([]); setTaskCards([]); setTimelineRecords([]); setHasLoadedStorage(true); return;
     }
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "加载失败，请重试");
+    snapshotRef.current = data;
+    const view = toChatState(data);
+    setConversations(view.conversations); setMessages(view.messages); setTaskCards(view.taskCards);
+    setTimelineRecords(view.timelineRecords); setTeacher(view.teacher);
+    setPreferences(previous => ({ ...view.preferences, autoAnalyzeUploadedPaper: previous.autoAnalyzeUploadedPaper }));
+    setHasLoadedStorage(true);
   }, []);
-
+  useEffect(() => { void refreshBackend().catch(error => { setToast(error.message); setHasLoadedStorage(true); }); }, [refreshBackend]);
+  const hasRunningTask = taskCards.some(task => task.status === "running");
   useEffect(() => {
-    if (!hasLoadedStorage) return;
-    saveStoredState({ conversations, messages, taskCards, timelineRecords, preferences, teacher, currentConversationId: activeId });
-  }, [activeId, conversations, messages, taskCards, timelineRecords, preferences, teacher, hasLoadedStorage]);
+    if (!hasRunningTask) return;
+    const timer = window.setInterval(() => { void refreshBackend().catch(error => setToast(error.message)); }, 4000);
+    return () => window.clearInterval(timer);
+  }, [hasRunningTask, refreshBackend]);
 
-  useEffect(() => {
-    const timers = taskTimersRef.current;
-    return () => {
-      Object.values(timers).forEach((timer) => window.clearInterval(timer));
-    };
-  }, []);
-
+  async function performBackend<T,>(work: () => Promise<T>, success = "") {
+    try { const result = await work(); await refreshBackend(); if (success) showToast(success); return result; }
+    catch (error) { showToast(error instanceof Error ? error.message : "操作未完成，请重试"); await refreshBackend().catch(() => {}); }
+  }
+  async function runRecordAction(task: TaskCard, action: string, extra: Record<string, unknown> = {}) {
+    const id = recordId(task);
+    const record = snapshotRef.current?.records.find(r => r.id === id);
+    if (!record || pendingRef.current.has(id)) return;
+    pendingRef.current.add(id);
+    if (action === "generate" || action === "feedback") {
+      setTaskCards(items => items.map(item => recordId(item) === id ? { ...item, status: "running", steps: [{ label: "正在处理，请稍候", status: "running" }] } : item));
+    }
+    try { return await performBackend(() => backend<LearningRecord>(`records/${id}`, { action, revision: record.revision, ...extra }, "PATCH")); }
+    finally { pendingRef.current.delete(id); }
+  }
+  function latestRecord(conversationId: string) {
+    return [...(snapshotRef.current?.records || [])].reverse().find(r => r.contactId === conversationId && r.content && r.evidence === "observed" && r.kind !== "prep");
+  }
   useEffect(() => {
     if (!isMobileNavigationOpen) return;
 
@@ -244,7 +248,7 @@ export function XuemaiWorkbenchApp() {
 
   function showToast(text: string) {
     setToast(text);
-    window.setTimeout(() => setToast(""), 1600);
+    window.setTimeout(() => setToast(""), 6000);
   }
 
   function openDrawer(drawer: ActiveDrawer) {
@@ -455,24 +459,9 @@ export function XuemaiWorkbenchApp() {
     openStudentProfileSideChat(conversation.id);
   }
 
-  function openStudentDetailTask(taskId: string) {
+function openStudentDetailTask(taskId: string) {
     const task = taskById.get(taskId);
-    if (!task) return;
-    if (isLearningEvidenceReportTask(task)) {
-      openLearningReportSideChat(task);
-      return;
-    }
-    if (isMonthlyReportTask(task)) {
-      openMonthlyReportSideChat(task);
-      return;
-    }
-    setDetailStudentId(null);
-    setMode("side-chat");
-    setActiveId(task.conversationId);
-    setReviewTaskId(task.id);
-    setSelectedTaskId(task.id);
-    setActiveDrawer(null);
-    setIsContextOpen(true);
+    if (task) { setDetailStudentId(null); openSkillReview(task); }
   }
 
   function createSideChatSession(option: SideChatContextOption) {
@@ -515,36 +504,24 @@ export function XuemaiWorkbenchApp() {
     }
   }
 
-  function sendSideChatMessage() {
+async function sendSideChatMessage() {
     const text = sideChatInput.trim();
     const session = activeSideChat;
-    if (!text || !session) return;
-
-    const teacherMessage = {
-      id: uid("side_msg"),
-      sender: "teacher" as const,
-      content: text,
-      createdAt: nowIso()
-    };
-    const assistantMessage = {
-      id: uid("side_msg"),
-      sender: "assistant" as const,
-      content: buildSideChatMockReply(session, text),
-      createdAt: nowIso()
-    };
-
-    setSideChats((items) =>
-      items.map((item) =>
-        item.id === session.id
-          ? {
-              ...item,
-              messages: [...item.messages, teacherMessage, assistantMessage],
-              updatedAt: assistantMessage.createdAt
-            }
-          : item
-      )
-    );
-    setSideChatInput("");
+    if (!text || !session || pendingRef.current.has(session.id)) return;
+    pendingRef.current.add(session.id);
+    showToast("正在根据当前记录回答…");
+    try {
+      const result = await backend<{ content: string }>("chat", {
+        question: text, contactId: session.conversationId,
+        sourceId: session.sourceId ? recordId({ id: session.sourceId.replace(/:archive$/, "") }) : undefined,
+      });
+      setSideChats(items => items.map(item => item.id === session.id ? {
+        ...item, messages: [...item.messages, { id: uid("side_msg"), sender: "teacher", content: text, createdAt: nowIso() },
+        { id: uid("side_msg"), sender: "assistant", content: result.content, createdAt: nowIso() }], updatedAt: nowIso(),
+      } : item));
+      setSideChatInput(""); showToast("回答已生成，供老师参考。");
+    } catch (error) { showToast(error instanceof Error ? error.message : "回答未完成，请重试"); }
+    finally { pendingRef.current.delete(session.id); }
   }
 
   function updateConversation(conversationId: string, patch: Partial<Conversation>) {
@@ -573,591 +550,145 @@ export function XuemaiWorkbenchApp() {
     );
   }
 
-  function completeTask(taskId: string) {
-    setTaskCards((items) =>
-      items.map((task) => {
-        if (task.id !== taskId) return task;
-        const resultPatch = task.skillId ? {} : createTaskResult(task, conversations.find((item) => item.id === task.conversationId) ?? activeConversation);
-        const completedTask: TaskCard = {
-          ...task,
-          ...resultPatch,
-          status: "completed",
-          currentStepIndex: task.steps.length - 1,
-          steps: task.steps.map((step): TaskStep => ({ ...step, status: "completed" })),
-          updatedAt: nowIso()
-        };
-        window.setTimeout(() => finalizeCompletedTask(completedTask), 0);
-        return completedTask;
-      })
-    );
-  }
 
-  function finalizeCompletedTask(completedTask: TaskCard) {
-    if (finalizedTaskIdsRef.current.has(completedTask.id)) return;
-    finalizedTaskIdsRef.current.add(completedTask.id);
-    updateConversation(completedTask.conversationId, {
-      summary: getCompletedConversationSummary(completedTask, conversations),
-      statusLabel: getCompletedConversationStatusLabel(completedTask),
-      attention: true,
-      time: "刚刚"
-    });
-    showToast("任务已完成");
-    if (shouldAutoArchiveLearningEvidence(completedTask, preferences.autoArchiveLearningEvidence)) {
-      window.setTimeout(() => {
-        archiveTaskWithProfileUpdates(completedTask, getDefaultLearningEvidenceArchiveSelection(completedTask));
-      }, 120);
-    }
-  }
 
-  function startTaskProgress(taskId: string, stepCount: number) {
-    if (taskTimersRef.current[taskId]) window.clearInterval(taskTimersRef.current[taskId]);
-    let stepIndex = 0;
-    taskTimersRef.current[taskId] = window.setInterval(() => {
-      stepIndex += 1;
 
-      if (stepIndex >= stepCount) {
-        window.clearInterval(taskTimersRef.current[taskId]);
-        delete taskTimersRef.current[taskId];
-        completeTask(taskId);
-        return;
-      }
 
-      setTaskCards((items) =>
-        items.map((item) =>
-          item.id === taskId
-            ? {
-                ...item,
-                currentStepIndex: stepIndex,
-                steps: item.steps.map((step, index): TaskStep => ({
-                  ...step,
-                  status: index < stepIndex ? "completed" : index === stepIndex ? "running" : "waiting"
-                })),
-                updatedAt: nowIso()
-              }
-            : item
-        )
-      );
-    }, 1000);
-  }
 
-  function createRunningTask(taskType: TaskType, conversation = activeConversation) {
-    const createdAt = nowIso();
-    const task: TaskCard = {
-      id: uid("task"),
-      conversationId: conversation.id,
-      targetName: conversation.name,
-      taskType,
-      title: getTaskTitle(taskType, conversation),
-      subject: getSkillSubjectLabel(conversation, subjectContextByConversationId[conversation.id]),
-      status: "running",
-      currentStepIndex: 0,
-      steps: createSteps(taskType),
-      createdAt,
-      updatedAt: createdAt
-    };
-    const taskMessage: Message = {
-      id: uid("msg"),
-      conversationId: conversation.id,
-      sender: "ai",
-      type: "task",
-      taskCardId: task.id,
-      createdAt
-    };
 
-    setTaskCards((items) => [...items, task]);
-    addMessage(taskMessage, `${getUserFacingTaskTitle(task)}中`);
-    startTaskProgress(task.id, task.steps.length);
-  }
 
-  function createRunningSkill(skillId: SkillId, conversation = activeConversation, inputSummary?: string, subjectOverride?: string) {
-    const subject = getSubjectType(conversation);
-    const skillSubjectLabel = subjectOverride ?? getSkillSubjectLabel(conversation, subjectContextByConversationId[conversation.id]);
-    const result = runMockSkill({
-      skillId,
-      subjectType: subject,
-      subjectId: conversation.id,
-      subjectName: conversation.name,
-      subjectGrade: conversation.grade,
-      subject: skillSubjectLabel,
-      inputSummary
-    });
-    const createdAt = nowIso();
-    const taskId = uid("task");
-    const editableState = createEditableSkillCardState({
-      skillRunId: taskId,
-      displayContent: result.displayContent,
-      structuredResult: result.structuredResult
-    });
-    const task: TaskCard = {
-      id: taskId,
-      conversationId: conversation.id,
-      targetName: conversation.name,
-      skillRunId: editableState.skill_run_id,
-      skillId,
-      taskType: mapSkillToTaskType(skillId),
-      title: getSkillTaskTitle(skillId, conversation, result.title),
-      subject: skillSubjectLabel,
-      status: "running",
-      currentStepIndex: 0,
-      steps: result.steps.map((label, index) => ({ label, status: index === 0 ? "running" : "waiting" })),
-      inputSummary: result.inputSummary,
-      contextSources: result.contextSources,
-      confidenceLevel: result.confidenceLevel,
-      structuredResult: result.structuredResult,
-      archiveTarget: getSkillArchiveTarget(skillId, conversation, result.archiveTarget),
-      actions: result.actions,
-      nextSuggestions: result.nextSuggestions,
-      originalOutput: editableState.original_output,
-      currentOutput: editableState.current_output,
-      editEvents: editableState.edit_events,
-      summary: result.displayContent,
-      feedbackText: typeof result.structuredResult.parent_message === "string" ? result.structuredResult.parent_message : result.displayContent,
-      detail: JSON.stringify(result.structuredResult, null, 2),
-      createdAt,
-      updatedAt: createdAt
-    };
-    const taskMessage: Message = {
-      id: uid("msg"),
-      conversationId: conversation.id,
-      sender: "ai",
-      type: "task",
-      taskCardId: task.id,
-      createdAt
-    };
 
-    setTaskCards((items) => [...items, task]);
-    addMessage(taskMessage, `${result.title}中`);
-    startTaskProgress(task.id, task.steps.length);
-  }
-
-  function handleUserMessage(text: string, conversation = activeConversation) {
+  async function createRunningSkill(skillId: SkillId, conversation = activeConversation, inputSummary = "", subjectOverride?: string, attachmentIds: string[] = []) {
     if (conversation.kind === "assistant") {
-      addAiText(conversation, buildAutomationAssistantReply(text, taskCards, conversations));
-      return;
+      showToast("请先选择学生或班级，再生成教学记录。"); return;
     }
-
-    const intent = detectIntent(text);
-
-    if (intent === "normal_chat") {
-      addAiText(conversation, "我已收到你的要求。你可以继续补充学生情况，或上传试卷让我生成分析卡片。");
-      return;
-    }
-
-    createRunningSkill(intentToSkillId(intent, conversation), conversation, text);
+    if (sending) return;
+    setSending(true);
+    try {
+      const source = latestRecord(conversation.id);
+      if (skillId === "generate_feedback" || skillId === "parent_communication") {
+        if (!source) { showToast("请先提交课堂表现或学习材料，完成记录后再生成反馈。"); return; }
+        await runRecordAction({ id: source.id } as TaskCard, "feedback"); return;
+      }
+      if (skillId === "split_to_student_profiles") {
+        const classRecord = source;
+        if (!classRecord) { showToast("请先完成本次班级课堂记录。"); return; }
+        setInput("请逐位记录到课学生的表现，再进入对应学生会话整理入档。");
+        showToast("请在学生会话中补充个体观察，班级内容不能代替个人表现。"); return;
+      }
+      const kind = skillId === "monthly_report" ? "monthly" : skillId === "analyze_learning_evidence" ? "analysis"
+        : ["next_lesson_plan", "lesson_prep", "tiered_practice"].includes(skillId) ? "prep" : "record";
+      const now = new Date().toLocaleDateString("en-CA");
+      const month = inputSummary.match(/(20\d{2})[-年](0?[1-9]|1[0-2])(?:月|\b)/);
+      const body = { contactId: conversation.id, kind, date: now,
+        month: month ? `${month[1]}-${month[2].padStart(2, "0")}` : now.slice(0, 7),
+        input: inputSummary || (kind === "prep" ? source ? `根据近期记录备课：\n${source.archiveContent || source.content}` : "" : ""),
+        attachmentIds, sourceIds: kind === "prep" && source ? [source.id] : [] };
+      const created = await performBackend(() => backend<LearningRecord>("records", body));
+      if (!created) return;
+      setInput(""); setComposerAttachments([]); setActiveSkillId(null);
+      await runRecordAction({ id: created.id } as TaskCard, "generate");
+    } finally { setSending(false); }
   }
 
-  function handleSendMessage() {
+
+
+  async function handleSendMessage() {
     const text = input.trim();
-    const attachments = composerAttachments;
-    if (!text && attachments.length === 0) return;
-    const conversation = activeConversation;
-    const selectedSkillId = activeSkillId;
-    if (attachments.length > 0) {
-      addMessage(
-        {
-          id: uid("msg"),
-          conversationId: conversation.id,
-          sender: "teacher",
-          type: "image",
-          content: text || undefined,
-          attachments,
-          imageUrl: attachments[0]?.imageUrl,
-          fileName: attachments[0]?.fileName,
-          createdAt: nowIso()
-        },
-        text || `${attachments.length} 张学习材料图片`
-      );
-    } else {
-      addMessage(
-        {
-          id: uid("msg"),
-          conversationId: conversation.id,
-          sender: "teacher",
-          type: "text",
-          content: text,
-          createdAt: nowIso()
-        },
-        text
-      );
+    if ((!text && !composerAttachments.length) || sending || uploading) return;
+    if (activeConversation.kind === "assistant") {
+      addMessage({ id: uid("msg"), conversationId: activeConversation.id, sender: "teacher", type: "text", content: text, createdAt: nowIso() });
+      addAiText(activeConversation, buildAutomationAssistantReply(taskCards, conversations));
+      setInput(""); return;
     }
-    setInput("");
-    setComposerAttachments([]);
-
-    if (conversation.kind === "assistant") {
-      addAiText(conversation, buildAutomationAssistantReply(text || `${attachments.length} 张材料`, taskCards, conversations));
-      return;
-    }
-
-    if (attachments.length > 0) {
-      const inputSummary = text || "上传学习材料图片";
-      if (selectedSkillId) {
-        createRunningSkill(selectedSkillId, conversation, inputSummary);
-        setActiveSkillId(null);
-        return;
-      }
-      if (preferences.autoAnalyzeUploadedPaper) {
-        createRunningSkill("analyze_learning_evidence", conversation, inputSummary);
-      } else {
-        setPendingUploadConversationId(conversation.id);
-      }
-      return;
-    }
-
-    if (selectedSkillId) {
-      createRunningSkill(selectedSkillId, conversation, text);
-      setActiveSkillId(null);
-      return;
-    }
-    handleUserMessage(text, conversation);
+    const skill = activeSkillId || (composerAttachments.length ? "analyze_learning_evidence" : intentToSkillId(detectIntent(text) === "normal_chat" ? "learning_record" : detectIntent(text) as TaskType, activeConversation));
+    await createRunningSkill(skill, activeConversation, text, undefined, composerAttachments.map(a => a.id));
   }
 
-  function handleUpload(file?: File) {
-    if (!file) return;
-    if (!allowedComposerFileTypes.has(file.type)) {
-      showToast("只支持 PNG、JPG 或 WebP 图片");
-      return;
-    }
-    if (file.size > maxComposerFileSizeBytes) {
-      showToast("单张图片不能超过 8 MB");
-      return;
-    }
-    if (composerAttachments.length >= maxComposerAttachments) {
-      showToast("一次最多添加 9 张图片");
-      return;
-    }
-    setPendingUploadConversationId(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      setComposerAttachments((items) => [
-        ...items,
-        {
-          id: uid("attachment"),
-          fileName: file.name,
-          imageUrl: typeof reader.result === "string" ? reader.result : undefined
-        }
-      ]);
-    };
-    reader.onerror = () => showToast("图片读取失败，请重新选择");
-    reader.readAsDataURL(file);
+  async function handleUpload(file?: File) {
+    if (!file || uploading) return;
+    if (file.size > 20 * 1024 * 1024) { showToast("单个文件不能超过 20 MB"); return; }
+    if (composerAttachments.length >= 5) { showToast("一次最多添加 5 份材料"); return; }
+    setUploading(true);
+    try {
+      const form = new FormData(); form.set("file", file);
+      const response = await fetch("/api/xuemai/attachments", { method: "POST", body: form });
+      const data: Attachment & { error?: string } = await response.json();
+      if (!response.ok) throw new Error(data.error || "上传失败");
+      setComposerAttachments(items => [...items, { id: data.id, fileName: data.name, imageUrl: data.type.startsWith("image/") ? `/api/xuemai/attachments/${data.id}` : undefined }]);
+      showToast("材料已上传，点击发送开始整理。");
+    } catch (error) { showToast(error instanceof Error ? error.message : "上传失败"); }
+    finally { setUploading(false); }
   }
 
-  function startPendingUploadTask(remember = false) {
-    const conversation = conversations.find((item) => item.id === pendingUploadConversationId) ?? activeConversation;
-    if (remember) setPreferences((value) => ({ ...value, autoAnalyzeUploadedPaper: true }));
-    setPendingUploadConversationId(null);
-    createRunningSkill("analyze_learning_evidence", conversation, "上传学习材料图片");
-  }
+  function startPendingUploadTask() { void handleSendMessage(); }
 
   async function copyFeedback(task: TaskCard) {
-    const transition = applyTaskSkillRunnerAction(task, "copy_feedback");
-    if (!transition.ok) {
-      showToast(transition.message ?? "请等待草稿生成后再复制");
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(getSkillCardVersionMeta(task).currentText || task.feedbackText || "");
-      showToast("已复制微信反馈");
-    } catch {
-      showToast("当前浏览器不允许自动复制，请手动复制后继续标记");
-    }
-    setTaskCards((items) => items.map((item) => (item.id === task.id ? transition.task : item)));
+    const record = snapshotRef.current?.records.find(r => r.id === recordId(task));
+    const value = isFeedback(task) ? record?.feedback : record?.content;
+    if (!value) { showToast("请等待结果生成后再复制。"); return; }
+    try { await navigator.clipboard.writeText(value); showToast("已复制，请到微信粘贴发送。"); }
+    catch { showToast("无法访问剪贴板，请手动复制正文。"); }
   }
 
-  function markFeedback(task: TaskCard) {
-    const transition = applyTaskSkillRunnerAction(task, "mark_parent_sent");
-    if (!transition.ok) {
-      showToast(transition.message ?? "请先复制微信反馈");
-      return;
-    }
-
-    setTaskCards((items) => items.map((item) => (item.id === task.id ? transition.task : item)));
-    updateConversation(task.conversationId, {
-      summary: "已反馈",
-      statusLabel: "已反馈",
-      attention: false,
-      time: "刚刚"
-    });
-    showToast("已标记为反馈完成");
+  async function markFeedback(task: TaskCard) {
+    if (await runRecordAction(task, "sent")) showToast("已标记为已发送。");
   }
 
-  function archiveTask(task: TaskCard) {
-    archiveTaskWithProfileUpdates(task, []);
+  async function archiveTask(task: TaskCard) {
+    if (await runRecordAction(task, "archive")) showToast("已确认入档。");
   }
 
-function archiveTaskWithProfileUpdates(task: TaskCard, selectedProfileUpdateIds: string[]) {
-    const conversation = conversations.find((item) => item.id === task.conversationId) ?? activeConversation;
-    const learningEvidenceArchive = task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis";
-    const feedbackArchive = task.skillId === "generate_feedback" || task.skillId === "parent_communication" || task.taskType === "feedback";
-    const transition = applyTaskSkillRunnerAction(task, "archive");
-    if (!transition.ok) {
-      showToast(transition.message ?? (learningEvidenceArchive ? "请等待分析完成后再确认入档" : "请等待草稿生成后再确认入档"));
-      return;
-    }
-
-    const archivedAt = transition.task.updatedAt;
-    const report = getLearningEvidenceReport(transition.task);
-    const profileUpdates = report
-      ? getSelectedLearningEvidenceProfileUpdates({
-          report,
-          selectedIds: selectedProfileUpdateIds,
-          sourceTaskId: task.id,
-          confirmedAt: archivedAt
-        })
-      : [];
-    const taskForArchive = report ? attachProfileUpdatesToTask(transition.task, selectedProfileUpdateIds, profileUpdates) : transition.task;
-    const archivedTask: TaskCard = {
-      ...archiveTaskCardCurrentOutput(taskForArchive),
-      status: "archived",
-      updatedAt: archivedAt
-    };
-    const archivedSummary = report
-      ? buildLearningEvidenceArchiveSummary(report, profileUpdates)
-      : archivedTask.archivedOutput?.display_content ?? archivedTask.currentOutput?.display_content ?? archivedTask.summary ?? archivedTask.feedbackText ?? archivedTask.detail ?? "已确认入档";
-
-    setTaskCards((items) => items.map((item) => (item.id === task.id ? archivedTask : item)));
-    setTimelineRecords((items) => [
-      ...items,
-      {
-        id: uid("timeline"),
-        conversationId: task.conversationId,
-        sourceTaskId: task.id,
-        skillId: task.skillId,
-        title: getUserFacingTaskTitle(task),
-        summary: archivedSummary,
-        archiveTarget: task.archiveTarget ?? (conversation.kind === "class" ? "班级档案 > 班课记录" : "学生档案 > 学习记录"),
-        profileUpdates,
-        createdAt: archivedAt
-      }
-    ]);
-    updateConversation(task.conversationId, {
-      summary: feedbackArchive ? "已反馈" : learningEvidenceArchive ? "学习材料分析已入档" : "已确认入档",
-      statusLabel: feedbackArchive ? "已反馈" : "已入档",
-      attention: false,
-      time: "刚刚"
-    });
-    showToast(
-      learningEvidenceArchive
-        ? profileUpdates.length
-          ? `已入档，并写入 ${profileUpdates.length} 项学生档案`
-          : "已确认报告入档"
-        : profileUpdates.length
-          ? `已入档，并写入 ${profileUpdates.length} 项学生档案`
-          : "已确认入档"
-    );
-  }
+  function archiveTaskWithProfileUpdates(task: TaskCard) { void archiveTask(task); }
 
   function regenerateTask(task: TaskCard) {
-    const conversation = conversations.find((item) => item.id === task.conversationId) ?? activeConversation;
-    if (task.skillId) {
-      createRunningSkill(task.skillId, conversation, task.inputSummary, task.subject);
-      return;
-    }
-    createRunningTask(task.taskType, conversation);
+    void runRecordAction(task, isFeedback(task) ? "feedback" : "generate");
   }
 
   function reviseTask(task: TaskCard, mode: "warmer" | "shorter") {
-    const action: SkillAction = mode === "warmer" ? "make_warmer" : "make_shorter";
-    const transition = applyTaskSkillRunnerAction(task, action);
-    if (!transition.ok) {
-      showToast(transition.message ?? "请等待草稿生成后再调整表达");
-      return;
-    }
-
-    setTaskCards((items) =>
-      items.map((item) => {
-        if (item.id !== task.id) return item;
-        const currentText = getSkillCardVersionMeta(item).currentText || item.feedbackText || item.summary || "";
-        const suffix = mode === "warmer" ? "我会继续帮他把方法练稳，整体不用着急。" : "后续重点练习条件提取和分步表达。";
-        const revisedText = mode === "warmer" ? `${currentText}${suffix}` : suffix;
-        const nextTask = editTaskCardEditableValue(item, revisedText, {
-          eventId: uid("edit"),
-          editedAt: nowIso()
-        });
-        return {
-          ...nextTask,
-          actionEvents: transition.task.actionEvents,
-          summary: mode === "warmer" ? "已调整为更温和的家长沟通表达。" : "已压缩为更简洁的微信反馈版本。",
-          status: transition.task.status,
-          updatedAt: nowIso()
-        };
-      })
-    );
-    showToast(mode === "warmer" ? "已改得更温和" : "已改得更简洁");
+    void runRecordAction(task, "feedback", { tone: mode === "warmer" ? "温和、具体" : "简洁、专业" });
   }
 
-  function handleSkillEdit(task: TaskCard, value: string) {
-    if (task.status === "archived") {
-      const editedAt = nowIso();
-      const updatedTask = {
-        ...editArchivedTaskCardEditableValue(task, value, {
-          eventId: uid("edit"),
-          editedAt
-        }),
-        status: "archived" as const,
-        updatedAt: editedAt
-      };
-      const updatedSummary = updatedTask.archivedOutput?.display_content ?? updatedTask.currentOutput?.display_content ?? updatedTask.summary ?? value;
-
-      setTaskCards((items) => items.map((item) => (item.id === task.id ? updatedTask : item)));
-      setTimelineRecords((items) => items.map((item) => (item.sourceTaskId === task.id ? { ...item, summary: updatedSummary } : item)));
-      showToast("已更新入档内容");
-      return;
-    }
-
-    setTaskCards((items) =>
-      items.map((item) =>
-        item.id === task.id
-          ? {
-              ...editTaskCardEditableValue(item, value, {
-                eventId: uid("edit"),
-                editedAt: nowIso()
-              }),
-              status: item.status === "running" ? item.status : "completed",
-              updatedAt: nowIso()
-            }
-          : item
-      )
-    );
-    showToast("已保存当前编辑版");
+  async function handleSkillEdit(task: TaskCard, value: string) {
+    const result = await runRecordAction(task, "edit", isFeedback(task) ? { feedback: value } : { content: value });
+    if (result) showToast("修改已保存。");
   }
 
   function handleSkillReset(task: TaskCard) {
-    if (task.status === "archived") {
-      showToast("已入档卡片不能重置，请重新生成新草稿");
-      return;
-    }
-
-    setTaskCards((items) =>
-      items.map((item) =>
-        item.id === task.id
-          ? {
-              ...resetTaskCardEditableOutput(item, {
-                eventId: uid("edit"),
-                editedAt: nowIso()
-              }),
-              status: item.status === "running" ? item.status : "completed",
-              updatedAt: nowIso()
-            }
-          : item
-      )
-    );
-    showToast("已重置为 AI 原稿");
+    const record = snapshotRef.current?.records.find(r => r.id === recordId(task));
+    if (record) void handleSkillEdit(task, isFeedback(task) ? record.aiFeedback : record.aiContent);
   }
 
-  function openSkillReview(task: TaskCard) {
-    if (isLearningEvidenceReportTask(task)) {
-      openLearningReportSideChat(task);
-      return;
-    }
-    if (isMonthlyReportTask(task)) {
-      openMonthlyReportSideChat(task);
-      return;
-    }
-    setReviewTaskId(task.id);
-    setSelectedTaskId(task.id);
-    setActiveDrawer(null);
-    setMode("side-chat");
+function openSkillReview(task: TaskCard) {
+    setActiveId(task.conversationId); setReviewTaskId(task.id); setSelectedTaskId(task.id);
+    setActiveDrawer(null); setMode("side-chat"); setIsContextOpen(true);
   }
 
-  function openLearningReportSideChat(task: TaskCard) {
-    const conversation = conversations.find((item) => item.id === task.conversationId) ?? activeConversation;
-    const option = buildLearningReportSideChatOption(conversation, task);
-    const existingSession = sideChats.find((session) => session.conversationId === conversation.id && session.contextType === "learning_material" && session.sourceId === task.id);
 
-    setActiveId(conversation.id);
-    setReviewTaskId(null);
-    setSelectedTaskId(task.id);
-    setActiveDrawer(null);
-    setDetailStudentId(null);
-    setMode("side-chat");
-    setSideChatInput("");
 
-    if (existingSession) {
-      setActiveSideChatId(existingSession.id);
-      return;
-    }
 
-    createSideChatSessionForConversation(conversation, option);
-  }
-
-  function openMonthlyReportSideChat(task: TaskCard) {
-    const conversation = conversations.find((item) => item.id === task.conversationId) ?? activeConversation;
-    const option = buildMonthlyReportSideChatOption(conversation, task);
-    const existingSession = sideChats.find((session) => session.conversationId === conversation.id && session.contextType === "monthly_report" && session.sourceId === task.id);
-
-    setActiveId(conversation.id);
-    setReviewTaskId(null);
-    setSelectedTaskId(task.id);
-    setActiveDrawer(null);
-    setDetailStudentId(null);
-    setMode("side-chat");
-    setSideChatInput("");
-
-    if (existingSession) {
-      setActiveSideChatId(existingSession.id);
-      return;
-    }
-
-    createSideChatSessionForConversation(conversation, option);
-  }
 
   function handleSkillAction(task: TaskCard, action: SkillAction) {
     if (action === "copy_feedback") return void copyFeedback(task);
-    if (action === "make_warmer") return reviseTask(task, "warmer");
-    if (action === "make_shorter") return reviseTask(task, "shorter");
-    if (action === "mark_parent_sent") return markFeedback(task);
-    if (action === "archive") return archiveTask(task);
+    if (action === "mark_parent_sent") return void markFeedback(task);
+    if (action === "archive" || action === "add_monthly_material" || action === "add_report_material") return void archiveTask(task);
     if (action === "regenerate") return regenerateTask(task);
-    if (action === "generate_feedback") {
-      const conversation = conversations.find((item) => item.id === task.conversationId) ?? activeConversation;
-      const transition = recordSkillActionEvent(task, action);
-      if (!transition.ok) return;
-      createRunningSkill("generate_feedback", conversation, task.summary, task.subject);
-      return;
-    }
-    if (action === "update_learning_record") {
-      const conversation = conversations.find((item) => item.id === task.conversationId) ?? activeConversation;
-      const transition = recordSkillActionEvent(task, action);
-      if (!transition.ok) return;
-      createRunningSkill("update_learning_record", conversation, task.summary, task.subject);
-      return;
-    }
+    if (action === "make_warmer" || action === "make_shorter") return reviseTask(task, action === "make_warmer" ? "warmer" : "shorter");
+    if (action === "generate_feedback") return void runRecordAction(task, "feedback");
     if (action === "generate_next_lesson") {
-      const conversation = conversations.find((item) => item.id === task.conversationId) ?? activeConversation;
-      const transition = recordSkillActionEvent(task, action);
-      if (!transition.ok) return;
-      createRunningSkill("next_lesson_plan", conversation, task.summary, task.subject);
+      const conversation = conversations.find(c => c.id === task.conversationId);
+      if (conversation) void createRunningSkill("next_lesson_plan", conversation, `根据本次记录备课：\n${task.currentOutput?.display_content || task.summary}`);
       return;
     }
-    if (action === "update_weakness") {
-      recordSkillActionEvent(task, action, "已更新薄弱点草稿");
+    if (action === "update_learning_record" || action === "save_note") {
+      const conversation = conversations.find(c => c.id === task.conversationId);
+      if (conversation) void createRunningSkill("update_learning_record", conversation, task.currentOutput?.display_content || task.summary);
       return;
     }
-    if (action === "generate_practice") {
-      recordSkillActionEvent(task, action, "已生成针对练习入口");
-      return;
-    }
-    if (action === "add_report_material" || action === "add_monthly_material") {
-      recordSkillActionEvent(task, action, "已加入月报素材");
-      return;
-    }
-    if (action === "save_note") {
-      recordSkillActionEvent(task, action, "已记录为普通备注");
-    }
+    showToast("请先检查记录，在学生会话中补充事实后继续。");
   }
 
-  function recordSkillActionEvent(task: TaskCard, action: SkillAction, successToast?: string) {
-    const transition = applyTaskSkillRunnerAction(task, action);
-    if (!transition.ok) {
-      showToast(transition.message ?? "当前状态不能执行这个操作");
-      return transition;
-    }
 
-    setTaskCards((items) => items.map((item) => (item.id === task.id ? transition.task : item)));
-    if (successToast) showToast(successToast);
-    return transition;
-  }
 
   function handleQuickTask(task: string) {
     if (activeConversation.kind === "assistant") {
@@ -1186,154 +717,27 @@ function archiveTaskWithProfileUpdates(task: TaskCard, selectedProfileUpdateIds:
   }
 
   function handleSmartInputAction(action: SmartInputAction) {
-    const text = input.trim();
-    if (!text) return;
-    const conversation = activeConversation;
-    addMessage(
-      {
-        id: uid("msg"),
-        conversationId: conversation.id,
-        sender: "teacher",
-        type: "text",
-        content: text,
-        createdAt: nowIso()
-      },
-      text
-    );
-    setInput("");
-
-    if (action === "generate_feedback") {
-      createRunningSkill("generate_feedback", conversation, text);
+    if (!input.trim() || sending) return;
+    if (action === "save_note") {
+      const text = input.trim();
+      void performBackend(() => backend("records", { contactId: activeConversation.id, kind: "record", input: text, date: new Date().toLocaleDateString("en-CA"), attachmentIds: [] }), "原文已保存，可稍后整理。").then(result => { if (result) setInput(""); });
       return;
     }
-    if (action === "save_learning_record") {
-      createRunningSkill("update_learning_record", conversation, text);
-      return;
-    }
-    addAiText(conversation, "已作为普通备注保存在当前会话，不进入长期档案。");
+    void createRunningSkill(action === "generate_feedback" ? "generate_feedback" : "update_learning_record", activeConversation, input);
   }
 
-  function handleCreate(kind: Exclude<CreationMode, null>, payload: CreationPayload) {
-    const name = payload.name.trim() || (kind === "student" ? "新学生" : "新班级");
-    const createdAt = nowIso();
-    const selectedClass =
-      kind === "student" && payload.className
-        ? conversations.find((item) => item.kind === "class" && item.name === payload.className)
-        : undefined;
-    const resolvedPayload =
-      kind === "student"
-        ? {
-            ...payload,
-            grade: payload.grade.trim() || selectedClass?.grade || "",
-            subject: normalizeSubjectText(payload.subject.trim() || selectedClass?.subject || "")
-          }
-        : payload;
-    const createSummary = kind === "student" ? buildStudentCreateSummary(resolvedPayload) : buildClassCreateSummary(resolvedPayload);
-    const next: Conversation =
-      kind === "student"
-        ? {
-            id: uid("student"),
-            kind: "student",
-            name,
-            avatar: name.slice(0, 1),
-            className: resolvedPayload.className?.trim() || "未分班",
-            subject: normalizeSubjectText(resolvedPayload.subject),
-            subjectTracks: splitSubjectText(normalizeSubjectText(resolvedPayload.subject)),
-            grade: resolvedPayload.grade.trim() || "未选年级",
-            summary: createSummary,
-            time: "刚刚",
-            statusLabel: "还没有记录",
-            accent: "green"
-          }
-        : {
-            id: uid("class"),
-            kind: "class",
-            name,
-            avatar: "群",
-            className: "0 名学生",
-            subject: normalizeSubjectText(resolvedPayload.subject),
-            grade: resolvedPayload.grade.trim() || "未选年级",
-            summary: createSummary,
-            time: "刚刚",
-            statusLabel: "还没有记录",
-            accent: "green",
-            members: 0
-          };
-
-    setConversations((items) => {
-      if (kind !== "student" || !next.className) return [next, ...items];
-      return [
-        next,
-        ...items.map((item) => {
-          if (item.kind !== "class" || item.name !== next.className) return item;
-          const members = (item.members ?? 0) + 1;
-          return { ...item, members, className: `${members} 名学生`, statusLabel: "还没有记录" };
-        })
-      ];
-    });
-    setMessages((items) => [
-      ...items,
-      {
-        id: uid(kind === "student" ? "student_profile_created" : "class_created"),
-        conversationId: next.id,
-        sender: "system",
-        type: "text",
-        content:
-          kind === "student"
-            ? buildStudentCreateMessage(name, resolvedPayload)
-            : buildClassCreateMessage(name, resolvedPayload),
-        createdAt
-      }
-    ]);
-    selectConversation(next.id);
-    setCreationMode(null);
-    showToast(kind === "student" ? "学生聊天已创建" : "班级群聊已创建");
+  async function handleCreate(kind: Exclude<CreationMode, null>, payload: CreationPayload) {
+    const selectedClass = conversations.find(c => c.kind === "class" && c.name === payload.className);
+    const saved = await performBackend(() => backend<Contact>("contacts", {
+      kind, name: payload.name, grade: payload.grade || selectedClass?.grade || "", subject: payload.subject || selectedClass?.subject || "数学",
+      classIds: selectedClass ? [selectedClass.id] : [], serviceRules: payload,
+    }), "资料已保存。");
+    if (saved) { selectConversation(saved.id); setCreationMode(null); }
   }
 
   function handleAddStudentToClass(classId: string, studentName: string) {
-    const classConversation = conversations.find((item) => item.id === classId && item.kind === "class");
-    const name = studentName.trim();
-    if (!classConversation || !name) return;
-
-    if (conversations.some((item) => item.kind === "student" && item.className === classConversation.name && item.name === name)) {
-      showToast("这个学生已经在当前班级");
-      return;
-    }
-
-    const newStudent: Conversation = {
-      id: uid("student"),
-      kind: "student",
-      name,
-      avatar: name.slice(0, 1),
-      className: classConversation.name,
-      subject: classConversation.subject,
-      subjectTracks: splitSubjectText(classConversation.subject),
-      grade: classConversation.grade,
-      summary: "还没有记录",
-      time: "",
-      statusLabel: "还没有记录",
-      accent: "green"
-    };
-
-    setConversations((items) => {
-      const nextMemberCount = items.filter((item) => item.kind === "student" && item.className === classConversation.name).length + 1;
-      return [
-        newStudent,
-        ...items.map((item) =>
-          item.id === classConversation.id
-            ? {
-                ...item,
-                className: `${nextMemberCount} 名学生`,
-                members: nextMemberCount,
-                statusLabel: "还没有记录",
-                summary: `${name} 已加入班级`,
-                time: "刚刚"
-              }
-            : item
-        )
-      ];
-    });
-    showToast(`${name} 已加入 ${classConversation.name}`);
+    const classroom = conversations.find(c => c.id === classId);
+    if (classroom) void handleCreate("student", { name: studentName, grade: classroom.grade, subject: classroom.subject, className: classroom.name });
   }
 
   function handleEditProfileRequest(conversation: Conversation) {
@@ -1344,79 +748,33 @@ function archiveTaskWithProfileUpdates(task: TaskCard, selectedProfileUpdateIds:
     setCreationMode(conversation.kind);
   }
 
-  function handleUpdateProfile(conversation: Conversation, payload: CreationPayload) {
-    const selectedClass =
-      conversation.kind === "student" && payload.className
-        ? conversations.find((item) => item.kind === "class" && item.name === payload.className)
-        : undefined;
-    const resolvedPayload =
-      conversation.kind === "student"
-        ? {
-            ...payload,
-            grade: payload.grade.trim() || selectedClass?.grade || conversation.grade,
-            subject: normalizeSubjectText(payload.subject.trim() || selectedClass?.subject || conversation.subject)
-          }
-        : payload;
-    const nextName = resolvedPayload.name.trim() || conversation.name;
-    const nextGrade = resolvedPayload.grade.trim() || conversation.grade;
-    const nextSubject = normalizeSubjectText(resolvedPayload.subject, conversation.subject);
-    const nextClassName = resolvedPayload.className?.trim() || conversation.className;
-
-    setConversations((items) =>
-      items.map((item) => {
-        if (item.id === conversation.id) {
-          return {
-            ...item,
-            name: nextName,
-            avatar: conversation.kind === "student" ? nextName.slice(0, 1) : item.avatar,
-            grade: nextGrade,
-            subject: nextSubject,
-            subjectTracks: conversation.kind === "student" ? splitSubjectText(nextSubject) : item.subjectTracks,
-            className: conversation.kind === "student" ? nextClassName : item.className,
-            summary: conversation.kind === "student" ? buildStudentCreateSummary(resolvedPayload) : buildClassCreateSummary(resolvedPayload),
-            time: "刚刚"
-          };
-        }
-
-        if (conversation.kind === "class" && item.kind === "student" && item.className === conversation.name) {
-          return { ...item, className: nextName };
-        }
-
-        return item;
-      })
-    );
-    setCreationMode(null);
-    setEditingConversationId(null);
-    showToast(conversation.kind === "class" ? "班级资料已更新" : "学生档案已更新");
+  async function handleUpdateProfile(conversation: Conversation, payload: CreationPayload) {
+    const selectedClass = conversations.find(c => c.kind === "class" && c.name === payload.className);
+    const saved = await performBackend(() => backend<Contact>("contacts", {
+      id: conversation.id, kind: conversation.kind, name: payload.name, grade: payload.grade, subject: payload.subject,
+      classIds: selectedClass ? [selectedClass.id] : [], serviceRules: payload,
+    }), "资料已更新。");
+    if (saved) { setCreationMode(null); setEditingConversationId(null); }
   }
 
-  function handleClearLocalData() {
-    window.localStorage.removeItem(storageKey);
-    Object.values(taskTimersRef.current).forEach((timer) => window.clearInterval(timer));
-    taskTimersRef.current = {};
-    setConversations(initialState.conversations);
-    setMessages(initialState.messages);
-    setTaskCards(initialState.taskCards);
-    setTimelineRecords(initialState.timelineRecords);
-    setPreferences(initialState.preferences);
-    setTeacher(null);
-    setActiveId(initialState.currentConversationId ?? "student-wang");
-    setMode("chat");
-    setDetailStudentId(null);
-    setSideChats([]);
-    setActiveSideChatId(null);
-    showToast("本地数据已清空");
+  function handleClearLocalData() { window.location.href = "/api/xuemai/export"; }
+
+  async function handleLogout() {
+    await performBackend(() => backend("auth", {}, "DELETE"));
+    setSideChats([]); setInput(""); setComposerAttachments([]); setMode("chat");
   }
 
-  function handleLogout() {
-    setTeacher(null);
-    setMode("chat");
-    showToast("已退出登录");
-  }
-
-  function handleLogin(profile: TeacherProfile) {
-    setTeacher(profile);
+  async function handleLogin(profile: TeacherProfile, credentials: { mode: string; password: string }) {
+    await backend("auth", { mode: credentials.mode, identifier: profile.contact, password: credentials.password, name: profile.nickname });
+    await refreshBackend();
+    setActiveId(snapshotRef.current?.contacts[0]?.id || initialState.currentConversationId!);
     showToast("欢迎回来");
+  }
+  function handlePreferences(value: UserPreferences) {
+    if (value.autoArchiveLearningEvidence) { showToast("学习档案需要老师逐项确认，不能自动入档。"); return; }
+    setPreferences(value);
+    const previous = snapshotRef.current?.preferences;
+    if (previous) void performBackend(() => backend("settings", { ...previous, tone: value.feedbackTone }, "PATCH"), "偏好已保存。");
   }
 
   if (!hasLoadedStorage) {
@@ -1467,7 +825,7 @@ function archiveTaskWithProfileUpdates(task: TaskCard, selectedProfileUpdateIds:
                 );
               })
             )}
-            {pendingUploadConversationId === activeConversation.id ? <ConfirmTaskCard onCancel={() => setPendingUploadConversationId(null)} onStart={() => startPendingUploadTask(false)} onRemember={() => startPendingUploadTask(true)} /> : null}
+            {pendingUploadConversationId === activeConversation.id ? <ConfirmTaskCard onCancel={() => setPendingUploadConversationId(null)} onStart={() => startPendingUploadTask()} onRemember={() => startPendingUploadTask()} /> : null}
             <div ref={bottomRef} />
           </div>
         </div>
@@ -1483,6 +841,7 @@ function archiveTaskWithProfileUpdates(task: TaskCard, selectedProfileUpdateIds:
           activeQuickTask={activeQuickTaskLabel}
           attachments={composerAttachments}
           smartHintsEnabled={!isAutomationAssistant}
+          busy={sending || uploading}
         />
       </div>
     </>
@@ -1496,7 +855,7 @@ function archiveTaskWithProfileUpdates(task: TaskCard, selectedProfileUpdateIds:
       onAction={handleSkillAction}
       onEdit={handleSkillEdit}
       onReset={handleSkillReset}
-      onAutoArchiveLearningEvidenceChange={(enabled) => setPreferences((value) => ({ ...value, autoArchiveLearningEvidence: enabled }))}
+      onAutoArchiveLearningEvidenceChange={(enabled) => handlePreferences({ ...preferences, autoArchiveLearningEvidence: enabled })}
       onConfirmProfileUpdates={archiveTaskWithProfileUpdates}
     />
   ) : (
@@ -1524,7 +883,7 @@ function archiveTaskWithProfileUpdates(task: TaskCard, selectedProfileUpdateIds:
       onTaskReset={handleSkillReset}
       onEditProfile={handleEditProfileRequest}
       autoArchiveLearningEvidence={preferences.autoArchiveLearningEvidence}
-      onAutoArchiveLearningEvidenceChange={(enabled) => setPreferences((value) => ({ ...value, autoArchiveLearningEvidence: enabled }))}
+      onAutoArchiveLearningEvidenceChange={(enabled) => handlePreferences({ ...preferences, autoArchiveLearningEvidence: enabled })}
       onTaskConfirmProfileUpdates={archiveTaskWithProfileUpdates}
     />
   );
@@ -1571,7 +930,7 @@ function archiveTaskWithProfileUpdates(task: TaskCard, selectedProfileUpdateIds:
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept=".png,.jpg,.jpeg,.webp,.pdf,.docx,.pptx,.txt,.md"
               className="hidden"
               onChange={(event) => {
                 handleUpload(event.target.files?.[0]);
@@ -1604,15 +963,18 @@ function archiveTaskWithProfileUpdates(task: TaskCard, selectedProfileUpdateIds:
               onEnter={(conversationId, taskId) => {
                 selectConversation(conversationId);
                 setSelectedTaskId(taskId ?? null);
+                if (taskId) { setReviewTaskId(taskId); setMode("side-chat"); }
                 showToast("已定位到对应聊天");
               }}
             />
           ) : mode === "settings" ? (
             <SettingsPanel
               preferences={preferences}
-              onChange={setPreferences}
+              onChange={handlePreferences}
               onClearData={handleClearLocalData}
               onLogout={handleLogout}
+              services={snapshotRef.current?.services}
+              onRefresh={refreshBackend}
               teacherName={teacher.nickname}
               teacherProfile={teacher}
               conversations={conversations}
@@ -1620,7 +982,7 @@ function archiveTaskWithProfileUpdates(task: TaskCard, selectedProfileUpdateIds:
             />
           ) : (
             <div className={`flex min-h-0 flex-1 ${mode === "side-chat" && !isAutomationAssistant ? "flex-row" : "flex-col"}`}>
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col">{chatPane}</div>
+              <div className={`${mode === "side-chat" ? "hidden lg:flex" : "flex"} min-h-0 min-w-0 flex-1 flex-col`}>{chatPane}</div>
               {mode === "side-chat" && !isAutomationAssistant ? (
                 <>
                   <div
@@ -1635,11 +997,11 @@ function archiveTaskWithProfileUpdates(task: TaskCard, selectedProfileUpdateIds:
                     onPointerDown={startSideWorkspaceResize}
                     onDoubleClick={() => setSideWorkspaceWidth(sideWorkspaceDefaultWidth)}
                     onKeyDown={handleSideWorkspaceResizeKey}
-                    className="group relative z-10 flex w-2 shrink-0 cursor-col-resize items-stretch justify-center outline-none"
+                    className="group relative z-10 hidden w-2 shrink-0 cursor-col-resize items-stretch justify-center outline-none lg:flex"
                   >
                     <span className="my-3 w-px rounded-full bg-[#dfe5e1] transition group-hover:bg-[#22c55e] group-focus-visible:bg-[#22c55e]" />
                   </div>
-                  <aside className="flex min-h-0 shrink-0 bg-[#f7f8f7]" style={{ width: sideWorkspaceWidth }}>
+                  <aside className="flex min-h-0 max-w-full shrink-0 bg-[#f7f8f7]" style={{ width: sideWorkspaceWidth }}>
                     {sideWorkspace}
                   </aside>
                 </>
@@ -1664,7 +1026,7 @@ function archiveTaskWithProfileUpdates(task: TaskCard, selectedProfileUpdateIds:
             onTaskEdit={handleSkillEdit}
             onTaskReset={handleSkillReset}
             autoArchiveLearningEvidence={preferences.autoArchiveLearningEvidence}
-            onAutoArchiveLearningEvidenceChange={(enabled) => setPreferences((value) => ({ ...value, autoArchiveLearningEvidence: enabled }))}
+            onAutoArchiveLearningEvidenceChange={(enabled) => handlePreferences({ ...preferences, autoArchiveLearningEvidence: enabled })}
             onTaskConfirmProfileUpdates={archiveTaskWithProfileUpdates}
           />
         ) : null}
@@ -1717,18 +1079,7 @@ function clampSideWorkspaceWidth(width: number) {
   return Math.min(sideWorkspaceMaxWidth, Math.max(sideWorkspaceMinWidth, Math.round(width)));
 }
 
-function hydrateSeedSubjectTracks(conversations: Conversation[]) {
-  return conversations.map((conversation) => {
-    if (conversation.kind !== "student" || conversation.subjectTracks?.length) return conversation;
-    const seedConversation = initialState.conversations.find((item) => item.id === conversation.id && item.kind === "student");
-    if (!seedConversation?.subjectTracks?.length) return conversation;
-    return {
-      ...conversation,
-      subject: seedConversation.subject,
-      subjectTracks: seedConversation.subjectTracks
-    };
-  });
-}
+
 
 function dedupeRepeatedTaskMessages(messages: Message[], taskById: Map<string, TaskCard>) {
   const seen = new Set<string>();
@@ -1837,52 +1188,12 @@ function buildConversationSkillPromptTemplate(skillId: SkillId, label: string, c
   }
 }
 
-function buildAutomationAssistantReply(text: string, taskCards: TaskCard[], conversations: Conversation[]) {
-  const pendingTasks = taskCards.filter((task) => task.status !== "archived" && task.status !== "failed");
-  const pendingStudents = conversations.filter((conversation) => conversation.kind === "student" && conversation.attention);
-  const waitingArchiveCount = taskCards.filter((task) => task.status === "completed" || task.status === "copied" || task.status === "feedback_done").length;
-
-  if (text.includes("周") || text.includes("回顾")) {
-    return `我按“本周服务回顾”来整理：当前有 ${pendingTasks.length} 张未完全闭环的卡片，${pendingStudents.length} 个学生带关注标记，${waitingArchiveCount} 条结果适合优先确认入档。建议先处理已生成但未入档的反馈，再补齐月报素材。`;
-  }
-  if (text.includes("监控") || text.includes("遗漏") || text.includes("续费")) {
-    return `我先做一版服务监控：重点看三类风险，未确认入档、未反馈家长、月报素材不足。当前 mock 数据里最该先看的，是带关注标记的学生和已完成但未入档的 AI 结果卡。`;
-  }
-  if (text.includes("月报")) {
-    return `月报相关建议：先从已入档记录里筛选“进步证据、薄弱点证据、下月计划”三类素材。没有老师确认的 AI 草稿不要直接进入月报。`;
-  }
-
-  return `我先按“今日简报”处理：当前有 ${pendingStudents.length} 个学生需要关注，${waitingArchiveCount} 条卡片结果可检查是否入档。建议今天先做三件事：确认已完成卡片、补齐家长反馈、把可复用内容加入月报素材。`;
-}
-
-function shouldAutoArchiveLearningEvidence(task: TaskCard, enabled: boolean) {
-  if (!enabled) return false;
-  return task.status === "completed" && (task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis") && Boolean(getLearningEvidenceReport(task));
-}
-
-function getDefaultLearningEvidenceArchiveSelection(task: TaskCard) {
-  const report = getLearningEvidenceReport(task);
-  return report ? getDefaultProfileUpdateSelection(report) : [];
-}
-
-function getCompletedConversationSummary(task: TaskCard, conversations: Conversation[]) {
-  const conversation = conversations.find((item) => item.id === task.conversationId);
-  const subjectPrefix = task.subject ? `${task.subject} · ` : "";
-
-  if (task.skillId === "monthly_report" && conversation?.kind === "class") return "班级月报已生成";
-  if (task.taskType === "monthly_report") return `${subjectPrefix}月报草稿已生成`;
-  if (task.taskType === "learning_record") return `${subjectPrefix}学习记录待入档`;
-  if (task.taskType === "feedback") return `${subjectPrefix}家长反馈待发送`;
-  if (task.taskType === "learning_evidence_analysis") return `${subjectPrefix}学情分析待反馈`;
-  if (task.taskType === "lesson_suggestion") return `${subjectPrefix}下次课建议待查看`;
-  if (task.taskType === "batch_feedback") return "批量反馈待发送";
-  if (task.taskType === "class_analysis") return "班级分析完成";
-  return "结果待查看";
-}
-
-function getSkillTaskTitle(skillId: SkillId, conversation: Conversation, fallback: string) {
-  if (skillId === "monthly_report" && conversation.kind === "class") return "班级月报";
-  return fallback;
+function buildAutomationAssistantReply(taskCards: TaskCard[], conversations: Conversation[]) {
+  const feedback = taskCards.filter(task => task.taskType === "feedback" && ["completed", "copied"].includes(task.status)).length;
+  const failed = taskCards.filter(task => task.status === "failed").length;
+  const archived = taskCards.filter(task => task.status === "archived").length;
+  const students = conversations.filter(item => item.kind === "student").length;
+  return `当前工作台有 ${students} 位学生、${feedback} 条待发送反馈、${failed} 条处理失败记录、${archived} 条已入档记录。请从左侧选择学生或班级继续处理。当前模板按需查看记录，不会创建定时任务或自动联系家长。`;
 }
 
 function getSkillDisplayLabel(skill: { id: SkillId; label: string }, conversation: Conversation) {
@@ -1890,13 +1201,7 @@ function getSkillDisplayLabel(skill: { id: SkillId; label: string }, conversatio
   return skill.label;
 }
 
-function getSkillArchiveTarget(skillId: SkillId, conversation: Conversation, fallback?: string) {
-  if (skillId === "monthly_report") {
-    return conversation.kind === "class" ? "老师工作台 > 班级月报" : "学生档案 > 月报";
-  }
-  if (skillId === "analyze_learning_evidence") return "学生档案 > 学习材料分析";
-  return fallback;
-}
+
 
 function getSubjectType(conversation: Conversation): SkillSubjectType {
   if (conversation.kind === "assistant") return "teacher_workspace";
@@ -1913,39 +1218,7 @@ function intentToSkillId(intent: Exclude<ReturnType<typeof detectIntent>, "norma
   return conversation.kind === "class" ? "class_lesson_record" : "update_learning_record";
 }
 
-function attachProfileUpdatesToTask(task: TaskCard, selectedProfileUpdateIds: string[], profileUpdates: ProfileUpdateRecord[]): TaskCard {
-  const currentOutput = task.currentOutput ?? {
-    display_content: task.summary ?? task.feedbackText ?? task.detail ?? "",
-    structured_result: task.structuredResult ?? {}
-  };
-  const structuredResult = {
-    ...currentOutput.structured_result,
-    profile_update_selection: selectedProfileUpdateIds,
-    confirmed_profile_updates: profileUpdates
-  };
 
-  return {
-    ...task,
-    currentOutput: {
-      ...currentOutput,
-      structured_result: structuredResult
-    },
-    structuredResult,
-    detail: JSON.stringify(structuredResult, null, 2),
-    actionEvents: (task.actionEvents ?? []).map((event, index, events) => {
-      if (index !== events.length - 1 || event.action !== "archive") return event;
-      return {
-        ...event,
-        message: profileUpdates.length ? `老师确认学习材料分析入档，并写入 ${profileUpdates.length} 项学生档案建议。` : "老师确认报告入档，未写入新的学生档案建议。",
-        metadata: {
-          ...event.metadata,
-          profile_update_count: profileUpdates.length,
-          profile_update_targets: profileUpdates.map((item) => item.target)
-        }
-      };
-    })
-  };
-}
 
 function toCreationPayload(conversation: Conversation): Partial<CreationPayload> {
   return {
@@ -1955,7 +1228,8 @@ function toCreationPayload(conversation: Conversation): Partial<CreationPayload>
     className: conversation.kind === "student" ? conversation.className : "",
     learningGoal: conversation.kind === "student" ? extractLearningGoal(conversation.summary) : "",
     needsFeedback: conversation.statusLabel.includes("反馈"),
-    repeatSchedule: true
+    repeatSchedule: true,
+    ...conversation.serviceRules
   };
 }
 
@@ -1965,101 +1239,23 @@ function extractLearningGoal(summary: string) {
   return normalized.replace(/^学习目标：/u, "").split(" · ")[0]?.trim() ?? "";
 }
 
-function buildStudentCreateSummary(payload: CreationPayload) {
-  const goal = payload.learningGoal?.trim();
-  const schedule = buildStudentScheduleText(payload);
-  if (goal && schedule) return `学习目标：${goal} · ${schedule}`;
-  if (goal) return `学习目标：${goal}`;
-  if (schedule) return schedule;
-  return "新建档案，等待课堂记录和学习材料补充。";
-}
 
-function buildStudentCreateMessage(name: string, payload: CreationPayload) {
-  const basic = `${name} · ${payload.grade || "未选年级"} · ${payload.subject || "未选科目"}${payload.className ? ` · ${payload.className}` : ""}`;
-  const goal = payload.learningGoal?.trim() ? `学习目标：${payload.learningGoal.trim()}。` : "学习目标稍后补充。";
-  const schedule = buildStudentScheduleText(payload) || "固定上课时间稍后设置";
-  const feedbackRule = payload.needsFeedback
-    ? `课后反馈规则：${payload.feedbackTrigger || "下课后自动生成"}，截止 ${payload.feedbackDeadline || "当天 22:00 前"}，提醒方式弹窗通知。`
-    : "课后反馈规则稍后设置，暂不自动生成待反馈任务。";
 
-  return `已完成学生建档：${basic}。\n${goal}\n上课节奏：${schedule}。\n${feedbackRule}\n后续课堂记录、学习材料分析和微信反馈会沉淀到这个学生档案，正式入档仍需要老师确认。`;
-}
 
-function buildClassCreateSummary(payload: CreationPayload) {
-  const schedule = buildStudentScheduleText(payload);
-  const classType = payload.classType?.trim();
-  if (schedule && classType) return `${classType} · ${schedule}`;
-  if (schedule) return schedule;
-  return "新建班级，等待班课记录和学生加入。";
-}
 
-function buildClassCreateMessage(name: string, payload: CreationPayload) {
-  const basic = `${name} · ${payload.grade || "未选年级"} · ${payload.subject || "未选科目"} · ${payload.classType || "未选班型"}`;
-  const schedule = buildStudentScheduleText(payload) || "固定上课时间稍后设置";
-  const feedbackRule = payload.needsFeedback
-    ? `课后反馈规则：${payload.feedbackTrigger || "下课后立即"}，截止 ${payload.feedbackDeadline || "下次课前 24H"}，提醒方式弹窗通知。`
-    : "课后反馈规则稍后设置，暂不自动生成班级待反馈任务。";
 
-  return `已创建班级群聊：${basic}。\n上课节奏：${schedule}。\n${feedbackRule}\n后续可在这里记录班课、批量反馈、共性薄弱点和班级月报素材；正式入档仍需要老师确认。`;
-}
 
-function buildStudentScheduleText(payload: CreationPayload) {
-  const days = splitCreationCourseDays(payload.courseDay)
-    .map((day) => `周${day}`)
-    .join("、");
-  const frequency = payload.frequency?.trim();
-  const courseTime = payload.courseTime?.trim();
-  const duration = payload.duration?.trim();
-  const totalLessons = payload.totalLessons?.trim();
-  const repeat = payload.repeatSchedule === false ? "不重复" : "重复";
-  const scheduleParts = [
-    frequency,
-    days,
-    courseTime,
-    duration ? `${duration} 分钟` : ""
-  ].filter(Boolean);
 
-  if (!scheduleParts.length) return totalLessons ? `${totalLessons} 课时` : "";
 
-  const parts = [...scheduleParts, totalLessons ? `${totalLessons} 课时` : "", repeat].filter(Boolean);
-  return parts.join(" · ");
-}
 
-function splitCreationCourseDays(value?: string) {
-  if (!value) return [];
-  return value
-    .replace(/周/g, "")
-    .split(/[、,，\s]+/u)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
 
-function isLearningEvidenceReportTask(task: TaskCard) {
-  return (task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis") && Boolean(getLearningEvidenceReport(task));
-}
 
-function buildLearningReportSideChatOption(conversation: Conversation, task: TaskCard): SideChatContextOption {
-  const title = conversation.kind === "class" ? `${conversation.name} 学习材料报告` : `${conversation.name} 学情报告`;
-  return {
-    id: `${conversation.id}-material-${task.id}`,
-    type: "learning_material",
-    title,
-    description: shortenSideChatText(task.summary ?? task.feedbackText ?? task.inputSummary ?? "查看本次学习材料分析报告。"),
-    sourceId: task.id
-  };
-}
 
-function buildMonthlyReportSideChatOption(conversation: Conversation, task: TaskCard): SideChatContextOption {
-  const report = getMonthlyReport(task);
-  const title = report?.report_type === "class" || conversation.kind === "class" ? `${conversation.name} 班级月报` : `${conversation.name} 学生月报`;
-  return {
-    id: `${conversation.id}-monthly-${task.id}`,
-    type: "monthly_report",
-    title,
-    description: shortenSideChatText(task.summary ?? task.feedbackText ?? task.inputSummary ?? "查看本月月报草稿。"),
-    sourceId: task.id
-  };
-}
+
+
+
+
+
 
 type SidebarSearchResult = SearchDrawerResultTarget & {
   id: string;
@@ -2250,9 +1446,7 @@ function formatSidebarTaskStatus(task: TaskCard) {
   return "生成中";
 }
 
-function getCompletedConversationStatusLabel(task: TaskCard) {
-  return taskHasParentFeedbackStatus(task) ? "待反馈" : "待入档";
-}
+
 
 function getDisplayStatusLabel(statusLabel: string) {
   if (statusLabel === "课后需反馈") return "待反馈";
@@ -2285,13 +1479,7 @@ function taskHasParentFeedbackStatus(task: TaskCard) {
   );
 }
 
-function getUserFacingTaskTitle(task: Pick<TaskCard, "skillId" | "taskType" | "title" | "structuredResult">) {
-  if (task.skillId === "generate_feedback" || task.skillId === "parent_communication" || task.taskType === "feedback") return "微信反馈";
-  if (task.skillId === "update_learning_record" || task.taskType === "learning_record") return "学习记录";
-  if (task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis") return "学情报告";
-  if (task.skillId === "monthly_report" || task.taskType === "monthly_report") return task.structuredResult?.audience === "teacher" ? "班级月报" : "学生月报";
-  return task.title.replace(/^生成/u, "");
-}
+
 
 function buildSideChatContextOptions(conversation: Conversation, tasks: TaskCard[], timelineRecords: TimelineRecord[]): SideChatContextOption[] {
   const sortedTasks = [...tasks].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -2365,25 +1553,7 @@ function buildSideChatWelcome(conversation: Conversation, option: SideChatContex
   return `已打开「${option.title}」。我会只围绕当前会话记录帮你整理，不会自动入档。`;
 }
 
-function buildSideChatMockReply(session: SideChatSession, text: string) {
-  const context = `「${session.contextLabel}」`;
-  if (text.includes("微信") || text.includes("家长") || text.includes("反馈")) {
-    return `基于${context}，建议反馈只保留三点：先肯定当前状态，再说明一个可训练问题，最后给出下次课动作。正式发送前仍建议回到主聊天生成微信反馈 AI 结果卡。`;
-  }
-  if (text.includes("入档") || text.includes("档案")) {
-    return `${context}里可以入档的是可复用事实，例如已确认的薄弱点、复发风险和下一步训练安排。侧聊里的判断只是草稿，不能直接成为长期档案。`;
-  }
-  if (text.includes("月报")) {
-    if (session.contextLabel.includes("班级")) {
-      return `从${context}看，班级月报应该先服务老师决策：本月班课节奏、共性薄弱点、重点学生、下月分层动作。这里不建议写成家长群发口吻。`;
-    }
-    return `从${context}看，学生月报里更适合写“本月表现证据 + 一个主要进步 + 一个下月跟进点”。不要堆太多诊断词，保持家长能读懂。`;
-  }
-  if (text.includes("下次") || text.includes("训练") || text.includes("安排")) {
-    return `围绕${context}，下次课可以按“复盘一个典型问题 → 做同类变式 → 让学生复述步骤”来排。正式计划建议再生成下次课建议卡片。`;
-  }
-  return `我会先把${context}里的信息当成参考，不扩展成正式结论。当前更稳妥的处理是：确认已有证据、标出不确定点，再决定是否生成 AI 结果卡。`;
-}
+
 
 function getSideChatTaskLabel(task: TaskCard) {
   if (task.taskType === "learning_evidence_analysis") return "学习材料分析";

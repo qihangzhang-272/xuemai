@@ -30,9 +30,16 @@ export function saveContact(owner: string, body: Record<string, unknown>) {
   for (const id of classIds) if (get(owner, "contact", id).kind !== "class") throw new AppError("班级无效");
   const previous = body.id ? get(owner, "contact", text(body.id, "对象", 100)) : undefined;
   if (previous && previous.kind !== kind) throw new AppError("不能更改对象类型");
+  const serviceRules: Record<string, string | boolean> = { ...previous?.serviceRules };
+  if (body.serviceRules && typeof body.serviceRules === "object" && !Array.isArray(body.serviceRules)) {
+    for (const key of ["classType", "learningGoal", "frequency", "courseDay", "courseTime", "duration", "repeatSchedule", "totalLessons", "needsFeedback", "feedbackTrigger", "feedbackDeadline", "reminder", "appReminder", "wechatPush"]) {
+      const value = (body.serviceRules as Record<string, unknown>)[key];
+      if (value !== undefined) serviceRules[key] = typeof value === "boolean" ? value : text(value, "服务规则", 500, false);
+    }
+  }
   const contact: Contact = { id: previous?.id || randomUUID(), kind,
     name: text(body.name, "姓名 / 班级名", 60), subject: text(body.subject, "学科", 30), grade: text(body.grade ?? "", "年级", 30, false),
-    classIds, createdAt: previous?.createdAt || now(), ...(previous?.mdtId ? { mdtId: previous.mdtId } : {}) };
+    classIds, serviceRules, createdAt: previous?.createdAt || now(), ...(previous?.mdtId ? { mdtId: previous.mdtId } : {}) };
   return put(owner, "contact", contact);
 }
 
@@ -72,7 +79,8 @@ export async function recordAction(owner: string, id: string, body: Record<strin
       item.status = "running"; item.error = "";
     });
     try {
-      const result = await generate(owner, record, get(owner, "contact", record.contactId), preferences(owner), action === "feedback");
+      const tone = action === "feedback" && body.tone !== undefined ? text(body.tone, "反馈语气", 80) : undefined;
+      const result = await generate(owner, record, get(owner, "contact", record.contactId), { ...preferences(owner), ...(tone ? { tone } : {}) }, action === "feedback");
       return mutateRecord(owner, id, record.revision, item => {
         if (action === "feedback") { item.feedback = result.content; item.aiFeedback = result.content; item.feedbackStatus = "pending"; }
         else {

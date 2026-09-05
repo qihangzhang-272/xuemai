@@ -108,7 +108,7 @@ export function CreateDialog({
                 <SegmentRow label="班级类型" value={payload.classType ?? ""} options={["一对一", "小班课", "机构班课"]} onChange={(value) => updateField("classType", value)} />
               </FormSection>
 
-              <FormSection title="固定上课时间" description="用于学脉助手生成班课提醒、批量待反馈和月报素材收集。">
+              <FormSection title="固定上课时间" description="保存班级的授课安排，当前由老师手动生成记录与反馈。">
                 <ChoiceRow label="上课频率" value={payload.frequency ?? ""} options={["每周", "隔周"]} onChange={(value) => updateField("frequency", value)} />
                 <div className="border-b border-[#edf0ee] py-3">
                   <p className="text-[12px] font-bold text-[#7a817d]">每周上课日</p>
@@ -155,7 +155,7 @@ export function CreateDialog({
                     <h3 className="text-[13px] font-black text-[#191c1d]">状态自动切换规则</h3>
                   </div>
                   <p className="mt-2 text-[12px] font-medium leading-5 text-[#5c665f]">
-                    开启课后反馈后，系统会根据班级上课时间生成待办，帮助老师跟踪批量反馈、共性薄弱点和月报素材；正式反馈与入档仍需要老师确认。
+                    授课时间和反馈规则会保存到班级资料。当前尚未接入定时任务，反馈与入档由老师在会话中操作。
                   </p>
                 </section>
                 <div className="space-y-2 pt-1">
@@ -194,7 +194,7 @@ export function CreateDialog({
               <TextRow label="自定义目标" value={payload.learningGoal ?? ""} placeholder="输入本阶段目标" onChange={(value) => updateField("learningGoal", value)} />
             </FormSection>
 
-            <FormSection title="固定上课时间" description="用于学脉助手生成课后提醒、待反馈状态和自动化任务。">
+            <FormSection title="固定上课时间" description="保存授课安排，当前由老师手动生成记录与反馈。">
               <ChoiceRow label="上课频率" value={payload.frequency ?? ""} options={["每周", "隔周"]} onChange={(value) => updateField("frequency", value)} />
               <div className="border-b border-[#edf0ee] py-3">
                 <p className="text-[12px] font-bold text-[#7a817d]">每周上课日</p>
@@ -242,7 +242,7 @@ export function CreateDialog({
                   <h3 className="text-[13px] font-black text-[#191c1d]">状态自动切换规则</h3>
                 </div>
                 <p className="mt-2 text-[12px] font-medium leading-5 text-[#5c665f]">
-                  系统会根据固定上课时间生成课后反馈任务。下课后进入待反馈，老师标记已发送后变为已反馈；超过截止时间仍未发送，会进入逾期未反馈。
+                  授课时间和反馈规则会保存到学生资料。当前尚未接入定时任务；生成反馈后显示待反馈，老师标记发送后显示已反馈。
                 </p>
               </section>
               <div className="space-y-2 pt-1">

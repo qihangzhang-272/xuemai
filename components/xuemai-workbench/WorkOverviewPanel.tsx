@@ -59,8 +59,8 @@ export function WorkOverviewPanel({
   const previewItem = items.find((item) => item.id === previewId) ?? selectedItems[0] ?? visibleItems[0];
   const visibleSelectedCount = visibleItems.filter((item) => selectedIds.includes(item.id)).length;
   const allVisibleSelected = visibleItems.length > 0 && visibleSelectedCount === visibleItems.length;
-  const todayLessons = buildOverviewLessons(conversations);
-  const archivedThisMonth = timelineRecords.length;
+  const todayLessons = buildOverviewLessons();
+  const archivedThisMonth = timelineRecords.filter(record => record.createdAt.slice(0, 7) === new Date().toISOString().slice(0, 7)).length;
 
   function toggleSelected(id: string) {
     setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
@@ -76,12 +76,9 @@ export function WorkOverviewPanel({
     setSelectedIds((current) => Array.from(new Set([...current, ...visibleItems.map((item) => item.id)])));
   }
 
-  function completeBatch(action: BatchAction) {
-    const count = selectedItems.length;
+  function completeBatch() {
     setBatchAction(null);
-    setSelectedIds([]);
-    setNotice(action === "feedback" ? `已为 ${count} 位学生生成独立草稿，请逐项检查` : action === "followup" ? `已为 ${count} 个对象安排普通跟进` : `已为 ${count} 个事项更新负责人`);
-    window.setTimeout(() => setNotice(""), 2800);
+    setNotice("请进入学生会话逐项处理；当前尚未接入批量跟进和负责人分配。");
   }
 
   return (
@@ -170,7 +167,7 @@ export function WorkOverviewPanel({
         </div>
       </div>
 
-      {batchAction ? <BatchOperationDialog action={batchAction} items={selectedItems} onClose={() => setBatchAction(null)} onConfirm={() => completeBatch(batchAction)} /> : null}
+      {batchAction ? <BatchOperationDialog action={batchAction} items={selectedItems} onClose={() => setBatchAction(null)} onConfirm={() => completeBatch()} /> : null}
     </div>
   );
 }
@@ -221,15 +218,7 @@ function BatchOperationDialog({ action, items, onClose, onConfirm }: { action: B
   return <div className="fixed inset-0 z-[80] flex items-end justify-center bg-[#101712]/30 p-0 backdrop-blur-[1px] sm:items-center sm:p-5" onMouseDown={onClose}><section role="dialog" aria-modal="true" aria-label={copy.title} onMouseDown={(event) => event.stopPropagation()} className="w-full rounded-t-[22px] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.18)] sm:max-w-[560px] sm:rounded-[20px]"><header className="flex items-start justify-between border-b border-[#edf0ee] px-5 py-4"><div><h2 className="text-[17px] font-black text-[#191c1d]">{copy.title}</h2><p className="mt-1 text-[11px] leading-5 text-[#6b746d]">{copy.description}</p></div><button type="button" aria-label="关闭批量操作" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-[#f3f5f4]"><X size={18} /></button></header><div className="px-5 py-4"><div className="flex items-center gap-2 rounded-[12px] bg-[#fff8e8] p-3 text-[11px] font-semibold leading-5 text-[#8a5a00]"><AlertTriangle size={16} className="shrink-0" />本次影响 {items.length} 个对象，不会自动发送家长消息，也不会批量写入学生档案。</div><div className="mt-3 max-h-[220px] overflow-y-auto rounded-[12px] border border-[#edf0ee]">{items.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 border-b border-[#edf0ee] px-3 py-2.5 last:border-0"><span className="min-w-0"><strong className="block truncate text-[12px] text-[#191c1d]">{item.targetName}</strong><span className="mt-0.5 block truncate text-[10px] text-[#8a948d]">{item.title}</span></span><span className={cn("shrink-0 rounded-[7px] px-2 py-1 text-[10px] font-black", statusTone[item.status])}>{item.status}</span></div>)}</div></div><footer className="flex justify-end gap-2 border-t border-[#edf0ee] px-5 py-4"><button type="button" onClick={onClose} className="h-10 rounded-[10px] px-4 text-[12px] font-black text-[#6b746d] hover:bg-[#f3f5f4]">取消</button><button type="button" onClick={onConfirm} className="h-10 rounded-[10px] bg-[#22c55e] px-5 text-[12px] font-black text-white hover:bg-[#16a34a]">{copy.confirm}</button></footer></section></div>;
 }
 
-function buildOverviewLessons(conversations: Conversation[]) {
-  const classes = conversations.filter((item) => item.kind === "class");
-  const students = conversations.filter((item) => item.kind === "student");
-  return [
-    { id: classes[0]?.id ?? students[0]?.id ?? "", time: "09:00", name: classes[0]?.name ?? "班级课程", meta: "数学 · 课后需确认反馈" },
-    { id: students[0]?.id ?? classes[0]?.id ?? "", time: "14:00", name: `${students[0]?.name ?? "学生"} 一对一`, meta: "课前先看最近错题记录" },
-    { id: students[1]?.id ?? classes[0]?.id ?? "", time: "17:00", name: `${students[1]?.name ?? "学生"} 课后跟进`, meta: "上次反馈尚未闭环" }
-  ];
-}
+function buildOverviewLessons(): { id: string; time: string; name: string; meta: string }[] { return []; }
 
 function formatTeacherName(value: string) {
   const name = value.trim() || "老师";

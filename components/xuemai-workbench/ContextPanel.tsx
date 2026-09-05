@@ -113,6 +113,7 @@ function GenericTaskReviewPanel({ task, onAction, onEdit, onReset }: { task: Tas
   }, [reviewText, task.id]);
 
   const running = task.status === "running";
+  const locked = task.status === "archived" || task.structuredResult?.locked === true;
   const changed = draft.trim() !== reviewText.trim();
   const actions = getReviewActions(task);
   const actionTimeline = buildSkillRunEventTimeline(task.actionEvents, { limit: 6 });
@@ -146,16 +147,16 @@ function GenericTaskReviewPanel({ task, onAction, onEdit, onReset }: { task: Tas
         <textarea
           value={draft}
           rows={8}
-          disabled={running}
+          disabled={running || locked}
           onChange={(event) => setDraft(event.target.value)}
           className="w-full resize-none rounded-[14px] border border-[#dfe5e1] bg-[#fbfcfb] px-3 py-2.5 text-[13px] font-semibold leading-6 text-[#26312a] outline-none transition focus:border-[#9bd9ad] disabled:bg-[#f3f4f5] disabled:text-[#8a948d]"
         />
         <div className="flex flex-wrap items-center gap-1.5">
-          <button type="button" disabled={running || !changed} onClick={() => onEdit?.(task, draft)} className="inline-flex h-8 items-center gap-1 rounded-full bg-[#22c55e] px-3 text-xs font-bold text-white transition hover:bg-[#16a34a] disabled:cursor-not-allowed disabled:bg-[#c2c8c3]">
+          <button type="button" disabled={running || locked || !changed} onClick={() => onEdit?.(task, draft)} className="inline-flex h-8 items-center gap-1 rounded-full bg-[#22c55e] px-3 text-xs font-bold text-white transition hover:bg-[#16a34a] disabled:cursor-not-allowed disabled:bg-[#c2c8c3]">
             <Save size={14} />
             保存编辑
           </button>
-          <button type="button" disabled={running || task.status === "archived" || version.editCount === 0} onClick={() => onReset?.(task)} className="inline-flex h-8 items-center gap-1 rounded-full bg-[#f3f4f5] px-3 text-xs font-bold text-[#3d4a3d] transition hover:bg-[#e7e8e9] disabled:cursor-not-allowed disabled:opacity-40">
+          <button type="button" disabled={running || locked || !version.isEdited} onClick={() => onReset?.(task)} className="inline-flex h-8 items-center gap-1 rounded-full bg-[#f3f4f5] px-3 text-xs font-bold text-[#3d4a3d] transition hover:bg-[#e7e8e9] disabled:cursor-not-allowed disabled:opacity-40">
             <RotateCcw size={14} />
             重置原稿
           </button>
@@ -167,7 +168,7 @@ function GenericTaskReviewPanel({ task, onAction, onEdit, onReset }: { task: Tas
           <p className="text-xs font-bold text-[#191c1d]">可做操作</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {actions.map((action) => (
-              <button key={action} type="button" disabled={running} onClick={() => onAction?.(task, action)} className={cn("inline-flex h-8 items-center rounded-full px-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-45", action === "archive" ? "bg-[#22c55e] text-white hover:bg-[#16a34a]" : "bg-[#f3f4f5] text-[#3d4a3d] hover:bg-[#e7e8e9]")}>
+              <button key={action} type="button" disabled={running || changed} onClick={() => onAction?.(task, action)} className={cn("inline-flex h-8 items-center rounded-full px-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-45", action === "archive" ? "bg-[#22c55e] text-white hover:bg-[#16a34a]" : "bg-[#f3f4f5] text-[#3d4a3d] hover:bg-[#e7e8e9]")}>
                 {skillActionLabels[action]}
               </button>
             ))}
@@ -206,7 +207,7 @@ function ReviewSection({ title, children }: { title: string; children: React.Rea
 
 function ActionTimeline({ items }: { items: SkillRunEventTimelineItem[] }) {
   if (!items.length) {
-    return <p className="text-[12px] font-medium leading-5 text-[#8a948d]">暂无按钮操作记录。复制、标记发送、加入月报素材等动作会显示在这里。</p>;
+    return <p className="text-[12px] font-medium leading-5 text-[#8a948d]">发送与入档状态见当前记录，暂不记录按钮操作历史。</p>;
   }
 
   return (
@@ -233,7 +234,7 @@ function getActionTimelineDot(tone: SkillRunEventTimelineItem["tone"]) {
 }
 
 function getReviewActions(task: TaskCard): SkillAction[] {
-  const actions = task.actions?.length ? task.actions : getFallbackReviewActions(task);
+  const actions = task.actions ?? getFallbackReviewActions(task);
   if (task.status === "archived") {
     return actions.filter((action) => action === "regenerate" || action === "generate_feedback" || action === "generate_next_lesson");
   }
@@ -453,7 +454,7 @@ function StudentContext({ conversation, messages, taskCards, timelineRecords, ac
       </TeacherSection>
 
       <TeacherSection title="月报素材池">
-        {monthlySources.length ? <MonthlySourceList items={monthlySources} /> : <EmptyLine>确认分析报告时勾选“月报素材”，这里会沉淀为月报可复用依据。</EmptyLine>}
+        {monthlySources.length ? <MonthlySourceList items={monthlySources} /> : <EmptyLine>老师确认入档的学习记录可用于生成学生月报。</EmptyLine>}
       </TeacherSection>
 
       <TeacherSection title="最近入档">
@@ -515,7 +516,7 @@ function ClassContext({ conversation, members, taskCards, onSelectStudent }: { c
       </TeacherSection>
 
       <TeacherSection title="共性薄弱点">
-        <TagRow items={["函数图像理解", "应用题建模", "证明步骤完整性"]} />
+        <TagRow items={["请根据班级学习记录确认"]} />
       </TeacherSection>
 
       <TeacherSection title="需要关注学生">
@@ -533,7 +534,7 @@ function ClassContext({ conversation, members, taskCards, onSelectStudent }: { c
       </TeacherSection>
 
       <TeacherSection title="最近班课记录">
-        <CompactTimeline items={["本周函数应用题讲评", "错题共性整理", "下周单元测验提醒"]} />
+        <CompactTimeline items={classTaskCards.slice(-3).reverse().map(task => task.title)} />
       </TeacherSection>
     </div>
   );
@@ -542,11 +543,11 @@ function ClassContext({ conversation, members, taskCards, onSelectStudent }: { c
 function getClassAttentionStudents(members: Conversation[], taskCards: TaskCard[]) {
   return members
     .map((student) => {
-      const mentionedTask = taskCards.find((task) => getTaskSearchText(task).includes(student.name));
+      const mentionedTask = taskCards.find((task) => task.conversationId === student.id && (task.status === "failed" || (task.taskType === "feedback" && task.status === "completed")));
       if (mentionedTask) {
         return {
           student,
-          reason: mentionedTask.taskType === "monthly_report" ? "月报提到，需要安排跟进" : "近期任务中被点名"
+          reason: mentionedTask.status === "failed" ? "记录处理失败，请重试" : "有反馈待发送"
         };
       }
 
@@ -562,21 +563,7 @@ function getClassAttentionStudents(members: Conversation[], taskCards: TaskCard[
     .filter((item): item is { student: Conversation; reason: string } => Boolean(item));
 }
 
-function getTaskSearchText(task: TaskCard) {
-  return [
-    task.title,
-    task.targetName,
-    task.inputSummary,
-    task.summary,
-    task.feedbackText,
-    task.detail,
-    task.currentOutput?.display_content,
-    task.archivedOutput?.display_content,
-    task.originalOutput?.display_content
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
+
 
 function TeacherSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (

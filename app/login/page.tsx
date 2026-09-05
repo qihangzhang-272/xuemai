@@ -1,2 +1,2 @@
-import { Workspace } from "@/components/xuemai-live/Workspace";
-export default function LoginPage() { return <Workspace />; }
+import { XuemaiWorkbenchApp } from "@/components/xuemai-workbench/XuemaiWorkbenchApp";
+export default function LoginPage() { return <XuemaiWorkbenchApp />; }

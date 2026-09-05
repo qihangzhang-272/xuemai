@@ -167,8 +167,8 @@ export function SideChatPanel({
           onComposerChange={onComposerChange}
           onSend={onSend}
         />
-      ) : activeSession.contextType === "student_profile" && conversation.kind === "student" ? (
-        <StudentProfileWorkspace student={conversation} taskCards={taskCards} timelineRecords={timelineRecords} onClose={onClosePanel} onOpenTask={onOpenTask} onEditProfile={onEditProfile} />
+      ) : activeSession.contextType === "student_profile" && conversation.kind === "student" && activeSession.messages.length === 1 ? (
+        <StudentProfileWorkspace student={conversation} taskCards={taskCards} timelineRecords={timelineRecords} onClose={onClosePanel} onOpenTask={onOpenTask} onEditProfile={onEditProfile} composerValue={composerValue} onComposerChange={onComposerChange} onSend={onSend} />
       ) : activeSession.contextType === "student_profile" && conversation.kind === "class" ? (
         <ClassProfileWorkspace conversation={conversation} classMembers={classMembers} taskCards={taskCards} timelineRecords={timelineRecords} onClose={onClosePanel} onEditProfile={onEditProfile} />
       ) : (

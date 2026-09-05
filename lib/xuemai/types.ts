@@ -7,6 +7,7 @@ export type Contact = {
   classIds: string[];
   mdtId?: string;
   createdAt: string;
+  serviceRules?: Record<string, string | boolean>;
 };
 
 export type RecordKind = "record" | "analysis" | "prep" | "monthly";

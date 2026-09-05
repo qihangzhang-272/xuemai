@@ -29,16 +29,20 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Conversation, TeacherProfile, TaskCard, TimelineRecord, UserPreferences } from "./types";
+import { backend } from "./backend-adapter";
+import type { Snapshot } from "@/lib/xuemai/types";
 
 type PanelTone = "green" | "yellow" | "blue" | "red" | "gray";
 
-export function LoginScreen({ onLogin }: { onLogin: (profile: TeacherProfile) => void }) {
+export function LoginScreen({ onLogin }: { onLogin: (profile: TeacherProfile, credentials: { mode: string; password: string }) => Promise<void> }) {
   const [mode, setMode] = useState<"login" | "register" | "identity" | "profile" | "forgot">("login");
   const [contact, setContact] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [agreed, setAgreed] = useState(false);
+  const [accountMode, setAccountMode] = useState("local");
+  const [authError, setAuthError] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
   const [role, setRole] = useState<TeacherProfile["role"]>("individual");
   const [nickname, setNickname] = useState("");
   const [organizationName, setOrganizationName] = useState("");
@@ -46,12 +50,14 @@ export function LoginScreen({ onLogin }: { onLogin: (profile: TeacherProfile) =>
   const [subjects, setSubjects] = useState<string[]>([]);
   const [teachingStages, setTeachingStages] = useState<string[]>([]);
   const [teachingModes, setTeachingModes] = useState<string[]>([]);
-  const canRegister = Boolean(contact.trim() && code.trim() && password.trim().length >= 8 && password === confirmPassword && agreed);
+  const canRegister = Boolean(contact.trim() && password.length >= 8 && password === confirmPassword);
   const canFinishProfile = Boolean(nickname.trim() && subjects.length > 0 && teachingStages.length > 0 && teachingModes.length > 0);
 
-  function finishLogin(nextProfile?: Partial<TeacherProfile>) {
-    onLogin({
-      contact: contact.trim() || "teacher@example.com",
+  async function finishLogin(nextProfile?: Partial<TeacherProfile>) {
+    if (authBusy) return;
+    setAuthBusy(true); setAuthError("");
+    try { await onLogin({
+      contact: contact.trim(),
       nickname: nextProfile?.nickname ?? (nickname.trim() || "老师"),
       role: nextProfile?.role ?? role,
       organizationName: nextProfile?.organizationName ?? organizationName.trim(),
@@ -59,7 +65,8 @@ export function LoginScreen({ onLogin }: { onLogin: (profile: TeacherProfile) =>
       subjects: nextProfile?.subjects ?? subjects,
       teachingStages: nextProfile?.teachingStages ?? teachingStages,
       teachingModes: nextProfile?.teachingModes ?? teachingModes
-    });
+    }, { mode: mode === "login" ? accountMode : "register", password });
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "登录失败"); } finally { setAuthBusy(false); }
   }
 
   return (
@@ -81,17 +88,17 @@ export function LoginScreen({ onLogin }: { onLogin: (profile: TeacherProfile) =>
                 <AuthField icon={<AtSign size={16} />} label="手机号 / 邮箱" value={contact} onChange={setContact} placeholder="请输入手机号或邮箱" />
                 <AuthField icon={<LockKeyhole size={16} />} label="密码" value={password} onChange={setPassword} placeholder="请输入密码" type="password" />
               </div>
-              <button type="button" onClick={() => setMode("forgot")} className="mt-3 block w-full text-right text-[12px] font-bold text-[#16a34a]">
-                忘记密码？
+              <button type="button" onClick={() => { setAccountMode(value => value === "local" ? "mdt" : "local"); setAuthError(""); }} className="mt-3 block w-full text-right text-[12px] font-bold text-[#16a34a]">
+                {accountMode === "local" ? "使用多维度教学助手账号" : "返回学脉账号登录"}
               </button>
-              <button type="button" onClick={() => finishLogin({ nickname: "Eric 老师", subjects: ["数学"], teachingStages: ["初中"], role: "individual" })} className="mt-5 flex h-11 w-full items-center justify-center rounded-[16px] bg-[#22c55e] text-sm font-black text-white shadow-[0_14px_26px_rgba(34,197,94,0.18)] transition hover:bg-[#16a34a]">
-                登录
+              <button type="button" disabled={authBusy || !contact.trim() || !password} onClick={() => void finishLogin()} className="mt-5 flex h-11 w-full items-center justify-center rounded-[16px] bg-[#22c55e] text-sm font-black text-white shadow-[0_14px_26px_rgba(34,197,94,0.18)] transition hover:bg-[#16a34a]">
+                {authBusy ? "正在登录…" : accountMode === "mdt" ? "登录多维度教学助手" : "登录"}
               </button>
               <button type="button" onClick={() => setMode("register")} className="mt-5 flex h-10 w-full items-center justify-center rounded-[15px] bg-white text-[13px] font-bold text-[#5c665f] transition hover:bg-[#edf8f1] hover:text-[#16a34a]">
                 还没有账号？立即注册
               </button>
             </div>
-            <p className="mt-4 text-center text-[11px] font-semibold leading-5 text-[#9aa19d]">当前为 mock 账号流程，信息只保存在当前浏览器。</p>
+            <p className="mt-4 text-center text-[11px] font-semibold leading-5 text-[#9aa19d]">账号与记录保存在学脉服务中。</p>
           </>
         ) : null}
 
@@ -101,14 +108,9 @@ export function LoginScreen({ onLogin }: { onLogin: (profile: TeacherProfile) =>
             <AuthProgress activeStep={1} />
             <div className="mt-6 space-y-3">
               <AuthField icon={<AtSign size={16} />} label="手机号 / 邮箱" value={contact} onChange={setContact} placeholder="请输入手机号或邮箱" />
-              <AuthField icon={<KeyRound size={16} />} label="验证码" value={code} onChange={setCode} placeholder="6 位验证码" actionLabel="获取验证码" />
               <AuthField icon={<LockKeyhole size={16} />} label="设置密码" value={password} onChange={setPassword} placeholder="至少 8 位" type="password" />
               <AuthField icon={<LockKeyhole size={16} />} label="确认密码" value={confirmPassword} onChange={setConfirmPassword} placeholder="再次输入密码" type="password" />
             </div>
-            <button type="button" onClick={() => setAgreed((value) => !value)} className="mt-4 flex items-center gap-2 text-left text-[12px] font-semibold text-[#6b746d]">
-              <span className={cn("flex h-4 w-4 items-center justify-center rounded border", agreed ? "border-[#22c55e] bg-[#22c55e] text-white" : "border-[#d7deda] bg-white")}>{agreed ? <CheckCircle2 size={12} /> : null}</span>
-              我已阅读并同意服务条款和隐私政策
-            </button>
             <AuthPrimaryButton disabled={!canRegister} onClick={() => setMode("identity")}>
               下一步
             </AuthPrimaryButton>
@@ -163,6 +165,7 @@ export function LoginScreen({ onLogin }: { onLogin: (profile: TeacherProfile) =>
             <AuthSecondaryButton onClick={() => setMode("login")}>返回登录</AuthSecondaryButton>
           </>
         ) : null}
+        {authError ? <p role="alert" className="mt-4 text-center text-[12px] font-semibold leading-5 text-[#dc2626]">{authError}</p> : null}
       </section>
       </div>
     </main>
@@ -172,10 +175,10 @@ export function LoginScreen({ onLogin }: { onLogin: (profile: TeacherProfile) =>
 function AuthIntro({ mode }: { mode: "login" | "register" | "identity" | "profile" | "forgot" }) {
   const modeCopy = {
     login: "登录后进入微信式教学工作台，学生是联系人，班级是群聊。",
-    register: "注册只创建本地 mock 账号，不会上传手机号、邮箱或密码。",
+    register: "创建独立学脉账号，教学记录按老师分别保存。",
     identity: "选择身份后，工作台会优先呈现你最常用的学生、班级和服务规则。",
     profile: "老师资料会用于默认反馈语气、月报署名和自动化提醒。",
-    forgot: "当前找回密码是演示流程，只验证页面交互和表单状态。"
+    forgot: "账号问题请联系当前学脉服务的管理员。"
   };
 
   return (
@@ -759,7 +762,9 @@ export function SettingsPanel({
   teacherName,
   teacherProfile,
   conversations,
-  taskCards
+  taskCards,
+  services,
+  onRefresh
 }: {
   preferences: UserPreferences;
   onChange: (value: UserPreferences) => void;
@@ -769,11 +774,13 @@ export function SettingsPanel({
   teacherProfile: TeacherProfile;
   conversations: Conversation[];
   taskCards: TaskCard[];
+  services?: Snapshot["services"];
+  onRefresh?: () => Promise<void>;
 }) {
   const [view, setView] = useState<"space" | "workspace" | "notifications">("space");
   const students = conversations.filter((conversation) => conversation.kind === "student");
   const classes = conversations.filter((conversation) => conversation.kind === "class");
-  const pendingFeedback = Math.max(1, taskCards.filter((task) => task.status === "copied" || task.status === "feedback_done").length);
+  const pendingFeedback = taskCards.filter((task) => task.taskType === "feedback" && (task.status === "completed" || task.status === "copied")).length;
   const teacherLabel = formatTeacherName(teacherName);
   const organizationLabel = teacherProfile.organizationName?.trim() || (teacherProfile.role === "organization" ? "机构资料未完善" : "个人工作室");
   const roleLabel = teacherProfile.role === "organization" ? "机构老师" : "个体老师";
@@ -786,7 +793,7 @@ export function SettingsPanel({
   }
 
   if (view === "notifications") {
-    return <NotificationCenterView pendingFeedback={pendingFeedback} monthlyCount={Math.max(classes.length, 1)} riskCount={Math.max(students.filter((student) => student.attention).length, 1)} aiDone={Math.max(taskCards.length, 2)} onBack={() => setView("space")} />;
+    return <NotificationCenterView pendingFeedback={pendingFeedback} monthlyCount={taskCards.filter(task => task.taskType === "monthly_report").length} riskCount={students.filter(student => student.attention).length} aiDone={taskCards.filter(task => task.status !== "running" && task.status !== "failed").length} onBack={() => setView("space")} />;
   }
 
   return (
@@ -806,8 +813,8 @@ export function SettingsPanel({
               </div>
             </div>
             <div className="mt-5 grid grid-cols-3 rounded-[18px] bg-[#f8faf9] py-3 text-center">
-              <MiniStat label="学生" value={students.length || 23} />
-              <MiniStat label="班级" value={classes.length || 4} />
+              <MiniStat label="学生" value={students.length} />
+              <MiniStat label="班级" value={classes.length} />
               <MiniStat label="待反馈" value={pendingFeedback} />
             </div>
           </section>
@@ -861,13 +868,15 @@ export function SettingsPanel({
             <SettingsRow icon={<Database size={19} />} title="学生档案管理" description="管理学生档案、学习记录和历史数据" />
           </SettingsGroup>
 
+          {services && onRefresh ? <SettingsGroup title="多维度教学助手"><BackendConnection connected={services.mdt} onRefresh={onRefresh} /></SettingsGroup> : null}
+
           <SettingsGroup title="帮助与支持">
             <SettingsRow icon={<HelpCircle size={19} />} title="帮助中心" description="查看常见问题和使用说明" />
             <SettingsRow icon={<MessageSquareText size={19} />} title="意见反馈" description="把你觉得别扭的流程直接告诉我们" />
             <div className="flex flex-wrap gap-2 px-1 pt-2">
               <button type="button" onClick={onClearData} className="inline-flex h-9 items-center gap-2 rounded-full bg-[#f3f4f5] px-4 text-sm font-bold text-[#3d4a3d] transition hover:bg-[#e8ece9]">
                 <RotateCcw size={15} />
-                清空本地数据
+                导出我的记录
               </button>
               <button type="button" onClick={onLogout} className="inline-flex h-9 items-center gap-2 rounded-full bg-[#fff1f1] px-4 text-sm font-bold text-[#dc2626] transition hover:bg-[#fee2e2]">
                 <LogOut size={15} />
@@ -1039,6 +1048,33 @@ function SettingsRow({ icon, title, description, onClick }: { icon: React.ReactN
       <ChevronRight size={17} className="text-[#a0a8a2]" />
     </button>
   );
+}
+
+function BackendConnection({ connected, onRefresh }: { connected: boolean; onRefresh: () => Promise<void> }) {
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [classes, setClasses] = useState<{ classId: string; name: string; _count: { students: number } }[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  async function perform(work: () => Promise<void>) {
+    setBusy(true); setMessage("");
+    try { await work(); await onRefresh(); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "操作未完成，请重试"); }
+    finally { setBusy(false); }
+  }
+  return <div className="space-y-3 px-1">
+    <p className="text-[13px] font-semibold leading-6 text-[#6b746d]">{connected ? "教师账号已连接，可读取班级并导入学脉。" : "使用已有教师账号，导入班级与学生。"}</p>
+    {!connected ? <>
+      <AuthField label="教师账号" value={identifier} onChange={setIdentifier} placeholder="多维度教学助手账号或邮箱" />
+      <AuthField label="教师密码" value={password} onChange={setPassword} placeholder="请输入密码" type="password" />
+      <AuthPrimaryButton disabled={busy || !identifier || !password} onClick={() => void perform(async () => { await backend("mdt", { action: "connect", identifier, password }); setPassword(""); setMessage("教师账号已连接"); })}>连接教师账号</AuthPrimaryButton>
+    </> : <AuthPrimaryButton disabled={busy} onClick={() => void perform(async () => { const result = await backend<{ classes: typeof classes }>("mdt"); setClasses(result.classes); setMessage(result.classes.length ? "" : "这个账号暂无班级"); })}>{busy ? "正在读取…" : "读取班级列表"}</AuthPrimaryButton>}
+    {classes.map(item => <div key={item.classId} className="flex items-center gap-3 rounded-[14px] bg-[#f8faf9] px-3 py-3">
+      <span className="min-w-0 flex-1 text-[13px] font-bold text-[#191c1d]">{item.name}<small className="mt-1 block text-[11px] font-medium text-[#6b746d]">{item._count.students} 位学生</small></span>
+      <button type="button" disabled={busy} onClick={() => void perform(async () => { await backend("mdt", { action: "import", classId: String(item.classId) }); setMessage("班级与学生已导入"); })} className="h-8 rounded-full bg-[#dcfce7] px-3 text-xs font-bold text-[#15803d]">导入</button>
+    </div>)}
+    {message ? <p role="status" className="text-[12px] font-semibold leading-5 text-[#6b746d]">{message}</p> : null}
+  </div>;
 }
 
 function SettingsToggleRow({ icon, title, description, checked, onChange }: { icon: React.ReactNode; title: string; description: string; checked: boolean; onChange: (checked: boolean) => void }) {

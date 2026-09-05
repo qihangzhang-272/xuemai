@@ -17,6 +17,9 @@ type StudentDetailModalProps = {
 };
 
 type StudentProfileWorkspaceProps = {
+  composerValue?: string;
+  onComposerChange?: (value: string) => void;
+  onSend?: () => void;
   student: Conversation;
   taskCards: TaskCard[];
   timelineRecords: TimelineRecord[];
@@ -47,7 +50,7 @@ export function StudentDetailModal(props: StudentDetailModalProps) {
   );
 }
 
-export function StudentProfileWorkspace({ student, taskCards, timelineRecords, onClose, onOpenTask, onEditProfile, activeSubject, onSubjectChange }: StudentProfileWorkspaceProps) {
+export function StudentProfileWorkspace({ student, taskCards, timelineRecords, onClose, onOpenTask, onEditProfile, activeSubject, onSubjectChange, composerValue = "", onComposerChange, onSend }: StudentProfileWorkspaceProps) {
   const [filter, setFilter] = useState<TimelineFilter>("全部");
   const subjectTracks = useMemo(() => getSubjectTracks(student), [student]);
   const selectedSubject = getSelectedSubjectTrack(student, activeSubject);
@@ -60,11 +63,11 @@ export function StudentProfileWorkspace({ student, taskCards, timelineRecords, o
   const studentRecords = useMemo(() => timelineRecords.filter((record) => record.conversationId === student.id), [student.id, timelineRecords]);
   const classMentions = useMemo(() => buildClassMentionHints(student, taskCards), [student, taskCards]);
   const timelineItems = useMemo(() => buildTimelineItems(studentTasks, studentRecords), [studentTasks, studentRecords]);
-  const aiTags = useMemo(() => buildAiProfileTags(student, studentTasks, studentRecords, subjectScope), [student, studentTasks, studentRecords, subjectScope]);
+  const aiTags = useMemo(() => buildAiProfileTags(student, studentTasks, studentRecords), [student, studentTasks, studentRecords]);
   const filteredTimelineItems = filter === "全部" ? timelineItems : timelineItems.filter((item) => item.type === filter);
   const latestSummary = getLatestTeachingSummary(studentTasks, studentRecords);
   const learningStatus = getStudentLearningStatus(student, studentTasks, studentRecords);
-  const teachingSignals = buildTeachingSignals(studentTasks, studentRecords, subjectScope);
+  const teachingSignals = buildTeachingSignals(studentTasks, studentRecords);
   const attentionReason = buildAttentionReason(student, aiTags, latestSummary);
   const latestUpdateLabel = getLatestUpdateLabel(studentTasks, studentRecords);
   const evidenceTag = aiTags.find((tag) => tag.tone === "red" || tag.tone === "amber") ?? aiTags[0];
@@ -259,11 +262,11 @@ export function StudentProfileWorkspace({ student, taskCards, timelineRecords, o
               <button type="button" className="text-[#98a2b3]" aria-label="添加">
                 <PlusCircle size={22} />
               </button>
-              <input className="min-w-0 flex-1 bg-transparent text-[14px] font-medium text-[#191c1d] outline-none placeholder:text-[#98a2b3]" placeholder={`询问 AI 助教关于${student.name}的问题`} />
+              <input value={composerValue} onChange={event => onComposerChange?.(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !event.nativeEvent.isComposing) onSend?.(); }} className="min-w-0 flex-1 bg-transparent text-[14px] font-medium text-[#191c1d] outline-none placeholder:text-[#98a2b3]" placeholder={`询问 AI 助教关于${student.name}的问题`} />
               <button type="button" className="text-[#98a2b3]" aria-label="语音">
                 <Mic size={20} />
               </button>
-              <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full bg-[#22c55e] text-white shadow-[0_8px_16px_rgba(34,197,94,0.24)]" aria-label="发送">
+              <button type="button" onClick={onSend} disabled={!composerValue.trim()} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#22c55e] text-white shadow-[0_8px_16px_rgba(34,197,94,0.24)]" aria-label="发送">
                 <SendHorizontal size={18} />
               </button>
             </div>
@@ -367,11 +370,11 @@ function findMentionSentence(text: string, studentName: string) {
   return sentence ? shortenDetailText(sentence, 46) : "";
 }
 
-function buildAiProfileTags(student: Conversation, tasks: TaskCard[], records: TimelineRecord[], subjectScope: string): AiProfileTag[] {
+function buildAiProfileTags(student: Conversation, tasks: TaskCard[], records: TimelineRecord[]): AiProfileTag[] {
   const confirmedUpdates = records.flatMap((record) => record.profileUpdates ?? []);
   const updateTags = confirmedUpdates.map((update) => profileUpdateToTag(update));
-  const archivedFeedbackCount = tasks.filter((task) => task.taskType === "feedback" && task.status === "archived").length + records.filter((record) => record.skillId === "generate_feedback").length;
-  const hasEvidenceAnalysis = tasks.some((task) => task.taskType === "learning_evidence_analysis") || records.some((record) => record.skillId === "analyze_learning_evidence");
+  const archivedFeedbackCount = tasks.filter((task) => task.taskType === "feedback" && task.status === "feedback_done").length;
+  const hasEvidenceAnalysis = tasks.some((task) => task.taskType === "learning_evidence_analysis" && task.structuredResult?.evidence === "observed" && !["running", "failed"].includes(task.status));
   const learningStatus = getStudentLearningStatus(student, tasks, records);
   const tags: AiProfileTag[] = [
     {
@@ -401,35 +404,10 @@ function buildAiProfileTags(student: Conversation, tasks: TaskCard[], records: T
     });
   }
 
-  if (tags.length < 4) {
-    tags.push(...buildEvidenceBackedFallbackTags(student.id, collectTeachingText(tasks, records), subjectScope, Boolean(student.attention)));
-  }
-
   return dedupeTags(tags).slice(0, 7);
 }
 
-function buildEvidenceBackedFallbackTags(studentId: string, text: string, subjectScope: string, attention: boolean): AiProfileTag[] {
-  const tags: AiProfileTag[] = [];
-  const addTag = (suffix: string, label: string, source: string, tone: TagTone) => {
-    if (!tags.some((tag) => tag.label === label)) tags.push({ id: `${studentId}-${suffix}`, label, source, tone });
-  };
 
-  if (/几何|证明/u.test(text)) addTag("geometry-proof", "几何证明思路复盘", "已入档记录", attention ? "red" : "blue");
-  if (/依据|理由|跳过理由/u.test(text)) addTag("proof-reason", "证明依据完整性", "已入档记录", attention ? "red" : "blue");
-  if (/平行线|全等/u.test(text)) addTag("geometry-connection", "平行线与全等条件衔接", "已入档记录", attention ? "red" : "blue");
-  if (/限制条件|条件提取|题干/u.test(text)) addTag("condition", "题干条件二次核对", "已入档记录", attention ? "red" : "blue");
-  if (/受力|摩擦力/u.test(text)) addTag("force", "受力图逐项标注", "已入档记录", attention ? "red" : "blue");
-  if (/单位换算|单位/u.test(text)) addTag("unit", "单位换算检查", "已入档记录", "blue");
-  if (/表达完整|步骤|过程/u.test(text)) addTag("steps", "步骤表达完整性", "已入档记录", "blue");
-
-  if (!tags.length) {
-    addTag("weakness-fallback", subjectScope === "数学" || subjectScope === "全部科目" ? "题干条件二次核对" : `${subjectScope}关键证据`, "待复核", attention ? "red" : "blue");
-    addTag("habit-fallback", "独立练习稳定性", "待复核", "blue");
-  }
-
-  addTag("monthly-fallback", "月报可引用", "确认后", "gray");
-  return tags;
-}
 
 function profileUpdateToTag(update: ProfileUpdateRecord): AiProfileTag {
   return {
@@ -486,7 +464,7 @@ function buildAttentionReason(student: Conversation, tags: AiProfileTag[], lates
 
 function buildTimelineItems(tasks: TaskCard[], records: TimelineRecord[]) {
   const taskItems = tasks
-    .filter((task) => task.status !== "running")
+    .filter((task) => task.status === "feedback_done")
     .map((task) => ({
       id: task.id,
       taskId: task.id,
@@ -565,10 +543,8 @@ function shortenDetailText(text: string, maxLength: number) {
 }
 
 function getStudentLearningStatus(student: Conversation, tasks: TaskCard[], records: TimelineRecord[]) {
-  const text = collectTeachingText(tasks, records);
   if (!tasks.length && !records.length) return "待补充";
-  if (student.attention || /需关注|不稳|漏|错|风险|薄弱|条件|摩擦力|单位换算/u.test(text)) return "需关注";
-  return "稳定跟进";
+  return student.statusLabel || (records.length ? "已入档" : "待确认");
 }
 
 function getLatestTeachingSummary(tasks: TaskCard[], records: TimelineRecord[]) {
@@ -585,7 +561,7 @@ function getLatestTeachingSummary(tasks: TaskCard[], records: TimelineRecord[]) 
   return "近期还没有足够的已确认学习记录，建议先补充课堂表现或学习材料。";
 }
 
-function buildTeachingSignals(tasks: TaskCard[], records: TimelineRecord[], subjectScope: string) {
+function buildTeachingSignals(tasks: TaskCard[], records: TimelineRecord[]) {
   const text = collectTeachingText(tasks, records);
   const focus: string[] = [];
   if (/限制条件|条件提取|题干/u.test(text)) focus.push("题干条件二次核对");
@@ -594,14 +570,7 @@ function buildTeachingSignals(tasks: TaskCard[], records: TimelineRecord[], subj
   if (/表达完整|步骤|过程/u.test(text)) focus.push("步骤表达完整性");
   if (/几何|证明/u.test(text)) focus.push("几何证明思路复盘");
 
-  const fallbackFocus =
-    subjectScope === "物理"
-      ? ["受力过程复述", "单位换算检查"]
-      : subjectScope === "数学"
-        ? ["题干条件标注", "同类题迁移"]
-        : ["关键条件提取", "步骤复盘"];
-
-  const nextLessonFocus = (focus.length ? focus : fallbackFocus).slice(0, 3).join("、");
+  const nextLessonFocus = focus.length ? focus.slice(0, 3).join("、") : "请根据已确认记录制定下次课重点";
   const parentCommunicationFocus = focus.length
     ? `反馈时说清正在练「${focus[0]}」，避免制造焦虑。`
     : "先说明课堂观察和下一步训练方向，不做长期定性。";
@@ -611,7 +580,7 @@ function buildTeachingSignals(tasks: TaskCard[], records: TimelineRecord[], subj
 
 function collectTeachingText(tasks: TaskCard[], records: TimelineRecord[]) {
   return [
-    ...tasks.flatMap((task) => [task.title, task.inputSummary, task.summary, task.feedbackText, task.detail, task.currentOutput?.display_content, task.archivedOutput?.display_content]),
+    ...tasks.filter((task) => task.status === "archived").map((task) => task.archivedOutput?.display_content),
     ...records.flatMap((record) => [record.title, record.summary, ...(record.profileUpdates ?? []).flatMap((update) => [update.label, update.value, update.evidence])])
   ]
     .filter(Boolean)

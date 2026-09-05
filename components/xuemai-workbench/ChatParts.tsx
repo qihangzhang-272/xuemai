@@ -264,7 +264,7 @@ function ImageMessage({ message }: { message: Message }) {
       <div className="rounded-[18px_18px_6px_18px] bg-[#22c55e] p-2 text-white shadow-[0_10px_24px_rgba(34,197,94,0.18)]">
         <div className={cn(multiImage ? "flex max-w-[244px] flex-wrap gap-1.5" : "block")}>
           {attachments.map((attachment) => (
-            <div key={attachment.id} className="relative flex h-[72px] w-[120px] overflow-hidden rounded-[12px] bg-white/90 text-[#3d4a3d]">
+            <div key={attachment.id} title={attachment.fileName} className="relative flex h-[72px] w-[120px] overflow-hidden rounded-[12px] bg-white/90 text-[#3d4a3d]">
               {attachment.imageUrl ? <Image src={attachment.imageUrl} alt={attachment.fileName} fill className="object-cover" unoptimized /> : <FileImage className="m-auto text-[#22c55e]" size={30} />}
             </div>
           ))}
@@ -324,7 +324,8 @@ export function Composer({
   quickTasks,
   activeQuickTask,
   attachments,
-  smartHintsEnabled
+  smartHintsEnabled,
+  busy = false
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -337,6 +338,7 @@ export function Composer({
   activeQuickTask?: string;
   attachments: ComposerAttachment[];
   smartHintsEnabled?: boolean;
+  busy?: boolean;
 }) {
   const insight = smartHintsEnabled === false || activeQuickTask ? null : detectInputInsight(value);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
@@ -368,7 +370,7 @@ export function Composer({
         <div className="relative rounded-[24px] border border-[#e5e8e6] bg-white px-3.5 py-2 shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
           {attachmentMenuOpen ? (
             <div className="absolute bottom-[58px] left-3 z-30 w-56 overflow-hidden rounded-[16px] border border-[#e3e6e4] bg-white p-1.5 shadow-[0_16px_36px_rgba(15,23,42,0.12)]">
-              <AttachmentMenuItem icon={<ImagePlus size={17} />} title="上传图片/试卷" subtitle="选择后再打开文件" onClick={openUploadPicker} />
+              <AttachmentMenuItem icon={<ImagePlus size={17} />} title="上传图片/学习材料" subtitle="图片、PDF、Word、PPT 或文本" onClick={openUploadPicker} />
               {materialSkill ? <AttachmentMenuItem icon={<BookOpenCheck size={17} />} title="分析学习材料" subtitle="选择后继续输入或上传" onClick={() => selectQuickTask(materialSkill)} /> : null}
               {recordSkill ? <AttachmentMenuItem icon={<Paperclip size={17} />} title="课堂记录草稿" subtitle="把输入整理成可入档记录" onClick={() => selectQuickTask(recordSkill)} /> : null}
             </div>
@@ -390,7 +392,7 @@ export function Composer({
               aria-label="消息输入"
               onChange={(event) => onChange(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !busy) {
                   event.preventDefault();
                   onSend();
                 }
@@ -401,9 +403,9 @@ export function Composer({
             <button
               type="button"
               onClick={onSend}
-              disabled={!value.trim() && attachments.length === 0}
+              disabled={busy || (!value.trim() && attachments.length === 0)}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#22c55e] text-white shadow-[0_10px_24px_rgba(34,197,94,0.2)] transition hover:bg-[#16a34a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#22c55e]/35 disabled:cursor-not-allowed disabled:bg-[#c7cec9] disabled:shadow-none sm:h-9 sm:w-9"
-              aria-label="发送"
+              aria-label={busy ? "正在处理" : "发送"}
             >
               <Send size={18} />
             </button>
@@ -422,7 +424,7 @@ export type ComposerAttachment = {
 
 function ComposerAttachmentPreview({ attachment, onRemove }: { attachment: ComposerAttachment; onRemove: () => void }) {
   return (
-    <div className="group relative flex h-[68px] w-[104px] shrink-0 overflow-hidden rounded-[13px] border border-[#e3e6e4] bg-[#f3f5f4]">
+    <div title={attachment.fileName} className="group relative flex h-[68px] w-[104px] shrink-0 overflow-hidden rounded-[13px] border border-[#e3e6e4] bg-[#f3f5f4]">
       {attachment.imageUrl ? <Image src={attachment.imageUrl} alt={attachment.fileName} fill className="object-cover" unoptimized /> : <FileImage className="m-auto text-[#8a948d]" size={24} />}
       <button type="button" onClick={onRemove} className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/55 text-xs font-bold text-white opacity-90 transition hover:bg-black/70" aria-label={`移除 ${attachment.fileName}`}>
         ×
