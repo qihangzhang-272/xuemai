@@ -1,0 +1,310 @@
+{
+  "fixture_schema": "student_learning_material_evaluation_dataset.v0.1",
+  "dataset_id": "synthetic-smoke-mainland-k12-math-exam",
+  "dataset_kind": "synthetic",
+  "description": "Synthetic smoke fixture for the evaluation runner only. It must not be used as 99% correctness evidence.",
+  "model_under_test": {
+    "provider_name": "mock",
+    "model_name": "mock-reasoner",
+    "prompt_version": "v0.4"
+  },
+  "review_protocol": {
+    "double_labeled": false,
+    "adjudicated": false,
+    "anonymized": true,
+    "reviewer_roles": []
+  },
+  "cases": [
+    {
+      "gold": {
+        "case_id": "synthetic-mainland-k12-math-exam-001",
+        "material_classification": {
+          "material_type": "exam",
+          "subject": "数学",
+          "education_stage": "middle",
+          "grade_candidate": "初二",
+          "region_or_curriculum_candidate": "江苏"
+        },
+        "questions": [
+          {
+            "question_id": "q001",
+            "expected_correctness": "partially_correct",
+            "definitive_judgement_allowed": true,
+            "expected_knowledge_points": ["一次函数应用"],
+            "expected_mistake_types": ["condition_extraction_error"]
+          },
+          {
+            "question_id": "q002",
+            "definitive_judgement_allowed": false
+          }
+        ],
+        "require_safe_parent_feedback": true,
+        "require_teacher_professional_report": true,
+        "require_monthly_snapshot": true,
+        "require_model_contract": true
+      },
+      "analysis": {
+        "schema_version": "student_learning_material_analysis.v0.4",
+        "analysis_id": "analysis_synthetic_math_exam_001",
+        "source_material_id": "synthetic_material_001",
+        "student_id": "synthetic_student_001",
+        "material_state": "valid_student_material",
+        "material_classification": {
+          "material_type": "exam",
+          "subject": "数学",
+          "education_stage": "middle",
+          "grade_candidate": "初二",
+          "region_or_curriculum_candidate": "江苏",
+          "classification_confidence": 0.92,
+          "evidenceRefs": ["synthetic.material_001.q001.stem"]
+        },
+        "gates": [
+          {
+            "gate_id": "student_trace",
+            "status": "pass",
+            "reason": "Synthetic case includes student answer and teacher correction.",
+            "evidenceRefs": ["synthetic.material_001.q001.answer", "synthetic.material_001.q001.teacher_mark"],
+            "risk_flags": []
+          },
+          {
+            "gate_id": "answer_key",
+            "status": "pass",
+            "reason": "Synthetic answer key is available.",
+            "evidenceRefs": ["synthetic.material_001.q001.answer_key"],
+            "risk_flags": []
+          }
+        ],
+        "accuracy_policy": {
+          "high_confidence_target": ">=99%",
+          "auto_judgement_rule": "Only judge definitively when evidence is sufficient.",
+          "refusal_rule": "Route insufficient evidence to teacher review.",
+          "unsupported_definitive_judgement_allowed": false
+        },
+        "evidence_summary": {
+          "usableEvidenceRefs": [
+            "synthetic.material_001.q001.stem",
+            "synthetic.material_001.q001.answer",
+            "synthetic.material_001.q001.teacher_mark",
+            "synthetic.material_001.q001.answer_key"
+          ],
+          "missing_context": [],
+          "reliability_notes": ["Synthetic smoke fixture."]
+        },
+        "question_analyses": [
+          {
+            "question_id": "q001",
+            "question_number": "1",
+            "material_refs": ["synthetic.material_001.q001.stem"],
+            "correctnessJudgement": {
+              "status": "partially_correct",
+              "source_basis": "mixed",
+              "explanation": "Student wrote the main function relation but missed the valid range.",
+              "evidenceRefs": ["synthetic.material_001.q001.answer", "synthetic.material_001.q001.teacher_mark", "synthetic.material_001.q001.answer_key"],
+              "confidence": 0.91
+            },
+            "knowledgeMapping": [
+              {
+                "knowledge_point_label": "一次函数应用",
+                "mapping_reason": "The stem and answer point to linear-function modeling.",
+                "evidenceRefs": ["synthetic.material_001.q001.stem"],
+                "confidence": 0.9
+              }
+            ],
+            "mistakeDiagnosis": [
+              {
+                "diagnosis_type": "condition_extraction_error",
+                "explanation": "The answer missed the valid range condition.",
+                "evidenceRefs": ["synthetic.material_001.q001.answer", "synthetic.material_001.q001.teacher_mark"],
+                "confidence": 0.88
+              }
+            ],
+            "nextActions": [
+              {
+                "action_type": "targeted_practice",
+                "title": "训练条件标注",
+                "detail": "先圈出限制条件，再列关系式。",
+                "priority": "high",
+                "verification_method": "同类题能写出取值范围。",
+                "evidenceRefs": ["synthetic.material_001.q001.teacher_mark"]
+              }
+            ],
+            "confidence": 0.9,
+            "evidenceRefs": ["synthetic.material_001.q001.answer", "synthetic.material_001.q001.teacher_mark"]
+          },
+          {
+            "question_id": "q002",
+            "question_number": "2",
+            "material_refs": ["synthetic.material_001.q002.stem"],
+            "correctnessJudgement": {
+              "status": "needs_teacher_review",
+              "source_basis": "insufficient",
+              "explanation": "Missing rubric, so the question cannot be judged definitively.",
+              "evidenceRefs": ["synthetic.material_001.q002.stem"],
+              "confidence": 0.42
+            },
+            "knowledgeMapping": [
+              {
+                "knowledge_point_label": "条件提取",
+                "mapping_reason": "Only a tentative label is available because evidence is insufficient.",
+                "evidenceRefs": ["synthetic.material_001.q002.stem"],
+                "confidence": 0.45
+              }
+            ],
+            "mistakeDiagnosis": [
+              {
+                "diagnosis_type": "unknown",
+                "explanation": "Evidence is insufficient; do not infer a cause.",
+                "evidenceRefs": ["synthetic.material_001.q002.stem"],
+                "confidence": 0.4,
+                "suggested_verification": "Ask the teacher to add the rubric."
+              }
+            ],
+            "nextActions": [
+              {
+                "action_type": "teacher_review",
+                "title": "补充评分点",
+                "detail": "确认题目评分依据后再判断。",
+                "priority": "high",
+                "verification_method": "老师补充标准答案或评分点。",
+                "evidenceRefs": ["synthetic.material_001.q002.stem"]
+              }
+            ],
+            "confidence": 0.42,
+            "evidenceRefs": ["synthetic.material_001.q002.stem"],
+            "degradeReason": "answer_key_missing"
+          }
+        ],
+        "student_profile_update_suggestions": [
+          {
+            "suggestion_type": "monthly_report_source",
+            "content": "一次函数应用中条件范围提取仍需跟进。",
+            "evidenceRefs": ["synthetic.material_001.q001.teacher_mark"],
+            "confidence": 0.88,
+            "teacher_confirmation_required": true,
+            "status": "draft"
+          }
+        ],
+        "next_learning_actions": [
+          {
+            "action_type": "next_lesson_focus",
+            "title": "下次课先练条件提取",
+            "detail": "用同类题训练取值范围标注。",
+            "priority": "high",
+            "verification_method": "能独立写出限制条件。",
+            "evidenceRefs": ["synthetic.material_001.q001.teacher_mark"]
+          }
+        ],
+        "teacher_professional_report": {
+          "report_title": "初二数学试卷专业测评型学情报告",
+          "assessment_style": "professional_evaluation",
+          "material_overview": "Synthetic middle-school math exam with student answer and teacher correction.",
+          "overall_conclusion": "Student can identify the main relation but still misses range conditions.",
+          "score_or_completion_summary": "One visible point loss; full score requires the full paper.",
+          "question_table_summary": "Question 1 is partially correct; question 2 needs teacher review.",
+          "knowledge_mastery_summary": "Linear-function modeling is emerging; condition expression needs reinforcement.",
+          "ability_dimension_summary": "Information extraction and answer checking are priority dimensions.",
+          "error_pattern_summary": "Range conditions are easy to omit.",
+          "priority_focus": "Train condition marking before answer writing.",
+          "consolidation_suggestions": ["做 3 道同类题，要求先圈限制条件。"],
+          "teacher_review_boundary": "Question 2 must not enter a definitive conclusion.",
+          "evidenceRefs": ["synthetic.material_001.q001.teacher_mark"]
+        },
+        "wechat_parent_feedback_draft": {
+          "status": "draft",
+          "text": "这次能抓住主要关系式，后续重点练习条件范围的提取和表达完整性。",
+          "sentences": [
+            {
+              "text": "这次能抓住主要关系式，后续重点练习条件范围的提取和表达完整性。",
+              "evidenceRefs": ["synthetic.material_001.q001.teacher_mark"]
+            }
+          ],
+          "warnings": [],
+          "forbidden_terms_found": []
+        },
+        "monthly_report_snapshot": {
+          "source_analysis_id": "analysis_synthetic_math_exam_001",
+          "student_id": "synthetic_student_001",
+          "month": "2026-06",
+          "subject": "数学",
+          "material_type": "exam",
+          "material_date": "2026-06-19",
+          "score_summary": "本次可见一处条件范围扣分点。",
+          "question_count": 2,
+          "analyzable_question_count": 1,
+          "knowledge_points": ["一次函数应用"],
+          "ability_dimensions": ["审题信息提取", "步骤表达"],
+          "error_patterns": ["条件范围遗漏"],
+          "main_progress_signal": "能抓住主要关系式。",
+          "main_issue_signal": "条件范围提取不稳定。",
+          "first_priority_action": "训练条件标注。",
+          "parent_visible_summary": "本次能抓住主要关系式，后续重点练条件范围表达。",
+          "teacher_only_notes": ["第 2 题证据不足，不进入趋势判断。"],
+          "confidence": 0.88,
+          "evidenceRefs": ["synthetic.material_001.q001.teacher_mark"],
+          "teacher_confirmed": false
+        },
+        "monthly_comparison_seed": {
+          "previous_month_snapshot": {
+            "month": "2026-05",
+            "main_issue_signal": "读题条件整理不稳定。",
+            "first_priority_action": "训练题干标注。",
+            "confidence": 0.78,
+            "evidenceRefs": ["synthetic.previous_month.2026-05.report_001"]
+          },
+          "current_month_snapshot": {
+            "month": "2026-06",
+            "main_progress_signal": "能抓住主要关系式。",
+            "main_issue_signal": "条件范围提取不稳定。",
+            "first_priority_action": "训练条件标注。",
+            "confidence": 0.88
+          },
+          "trend_by_knowledge_point": [
+            {
+              "knowledge_point": "一次函数应用",
+              "trend": "stable",
+              "evidenceRefs": ["synthetic.material_001.q001.teacher_mark"]
+            }
+          ],
+          "trend_by_ability_dimension": [
+            {
+              "dimension": "审题信息提取",
+              "trend": "watch",
+              "evidenceRefs": ["synthetic.material_001.q001.teacher_mark"]
+            }
+          ],
+          "trend_by_error_pattern": [
+            {
+              "pattern": "条件范围遗漏",
+              "trend": "repeated",
+              "evidenceRefs": ["synthetic.material_001.q001.teacher_mark"]
+            }
+          ],
+          "new_issues": [],
+          "improved_issues": ["主要关系式识别更稳定"],
+          "repeated_issues": ["条件范围遗漏"],
+          "confidence_change": "本月证据可与上月谨慎比较。",
+          "teacher_interpretation": "本月可强调基础关系识别稳定，同时继续跟进条件表达。",
+          "parent_readable_comparison": "和上月相比，孩子在主要关系式识别上更稳定，但条件范围表达仍需继续练习。",
+          "evidenceRefs": ["synthetic.material_001.q001.teacher_mark", "synthetic.previous_month.2026-05.report_001"]
+        },
+        "model_contract": {
+          "input_schema": "VisionEvidencePacket",
+          "output_schema": "StudentLearningMaterialAnalysis",
+          "vision_provider_replaceable": true,
+          "reasoning_model_replaceable": true,
+          "strict_json_schema_preferred": true,
+          "provider_name": "mock",
+          "model_name": "mock-reasoner"
+        },
+        "teacher_review_required": true,
+        "risk_flags": [],
+        "audit": {
+          "runtime_model": "mock-reasoner",
+          "vision_plugin_run_id": "mock_vision_synthetic",
+          "created_at": "2026-06-19T00:00:00+08:00",
+          "error_sources": []
+        }
+      }
+    }
+  ]
+}

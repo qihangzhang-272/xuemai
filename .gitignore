@@ -1,0 +1,19 @@
+.DS_Store
+node_modules
+.next
+out
+dist
+.env*
+!.env.example
+coverage
+*.log
+tsconfig.tsbuildinfo
+supabase/.branches
+supabase/.temp
+.vercel
+.lessonledger-data
+
+# Local planning and review artifacts
+docs/audits/
+开发日记/
+skills-docs/

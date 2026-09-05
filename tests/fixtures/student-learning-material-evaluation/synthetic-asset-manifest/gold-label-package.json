@@ -1,0 +1,118 @@
+{
+  "fixture_schema": "student_learning_material_gold_label_package.v0.1",
+  "package_id": "gold-label-synthetic-asset-case-001",
+  "case_id": "synthetic-asset-case-001",
+  "source_material_id": "synthetic_asset_material_001",
+  "vision_packet_id": "synthetic_asset_vision_001",
+  "material_id": "synthetic_asset_material_001",
+  "anonymization": {
+    "student_identifiers_removed": true,
+    "teacher_identifiers_removed": true,
+    "school_identifiers_removed": true,
+    "raw_images_excluded_from_gold_file": true
+  },
+  "labels": [
+    {
+      "label_id": "synthetic-asset-case-001-label-a",
+      "reviewer_id": "reviewer-a",
+      "reviewer_role": "教研标注员",
+      "labeled_at": "2026-06-19T00:00:00.000Z",
+      "gold": {
+        "case_id": "synthetic-asset-case-001",
+        "material_classification": {
+          "material_type": "exam",
+          "subject": "数学",
+          "education_stage": "middle",
+          "grade_candidate": "初二",
+          "region_or_curriculum_candidate": "未识别"
+        },
+        "questions": [
+          {
+            "question_id": "q001",
+            "definitive_judgement_allowed": true,
+            "expected_correctness": "partially_correct",
+            "expected_knowledge_points": ["一次函数应用"],
+            "expected_mistake_types": ["condition_extraction_error"]
+          }
+        ],
+        "require_safe_parent_feedback": true,
+        "require_teacher_professional_report": true,
+        "require_monthly_snapshot": true,
+        "require_model_contract": true
+      },
+      "question_evidence_basis": [
+        {
+          "question_id": "q001",
+          "student_trace_evidence_refs": ["synthetic.asset.q001.answer"],
+          "answer_key_or_rubric_evidence_refs": ["synthetic.asset.q001.answer_key"],
+          "teacher_correction_evidence_refs": ["synthetic.asset.q001.teacher_mark"]
+        }
+      ]
+    },
+    {
+      "label_id": "synthetic-asset-case-001-label-b",
+      "reviewer_id": "reviewer-b",
+      "reviewer_role": "授课老师",
+      "labeled_at": "2026-06-19T00:10:00.000Z",
+      "gold": {
+        "case_id": "synthetic-asset-case-001",
+        "material_classification": {
+          "material_type": "exam",
+          "subject": "数学",
+          "education_stage": "middle",
+          "grade_candidate": "初二",
+          "region_or_curriculum_candidate": "未识别"
+        },
+        "questions": [
+          {
+            "question_id": "q001",
+            "definitive_judgement_allowed": true,
+            "expected_correctness": "partially_correct",
+            "expected_knowledge_points": ["一次函数应用"],
+            "expected_mistake_types": ["condition_extraction_error"]
+          }
+        ],
+        "require_safe_parent_feedback": true,
+        "require_teacher_professional_report": true,
+        "require_monthly_snapshot": true,
+        "require_model_contract": true
+      },
+      "question_evidence_basis": [
+        {
+          "question_id": "q001",
+          "student_trace_evidence_refs": ["synthetic.asset.q001.answer"],
+          "answer_key_or_rubric_evidence_refs": ["synthetic.asset.q001.answer_key"],
+          "teacher_correction_evidence_refs": ["synthetic.asset.q001.teacher_mark"]
+        }
+      ]
+    }
+  ],
+  "adjudicated_gold": {
+    "case_id": "synthetic-asset-case-001",
+    "material_classification": {
+      "material_type": "exam",
+      "subject": "数学",
+      "education_stage": "middle",
+      "grade_candidate": "初二",
+      "region_or_curriculum_candidate": "未识别"
+    },
+    "questions": [
+      {
+        "question_id": "q001",
+        "definitive_judgement_allowed": true,
+        "expected_correctness": "partially_correct",
+        "expected_knowledge_points": ["一次函数应用"],
+        "expected_mistake_types": ["condition_extraction_error"]
+      }
+    ],
+    "require_safe_parent_feedback": true,
+    "require_teacher_professional_report": true,
+    "require_monthly_snapshot": true,
+    "require_model_contract": true
+  },
+  "adjudicated_by": {
+    "reviewer_id": "reviewer-adjudicator",
+    "reviewer_role": "教研负责人",
+    "adjudicated_at": "2026-06-19T00:20:00.000Z"
+  }
+}

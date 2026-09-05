@@ -1,0 +1,9 @@
+.env
+.env.*
+.env*.local
+
+.git
+.vercel
+node_modules
+.next
+coverage

@@ -1,0 +1,100 @@
+{
+  "provider": "paddleocr",
+  "providerRunId": "paddleocr_like_fixture_run_001",
+  "providerModelVersion": "PP-StructureV3-fixture",
+  "materialId": "provider_adapter_material_001",
+  "sourceMaterialId": "provider_adapter_source_001",
+  "studentId": "00000000-0000-0000-0000-000000000301",
+  "teacherId": "00000000-0000-0000-0000-000000000101",
+  "tenantId": "00000000-0000-0000-0000-000000000201",
+  "sourceKind": "image",
+  "createdAt": "2026-06-19T10:30:00+08:00",
+  "pages": [
+    {
+      "page_id": "p01",
+      "page_index": 1,
+      "page_image_ref": "storage://synthetic/provider_adapter_material_001/p01.png",
+      "width": 1440,
+      "height": 1920,
+      "image_quality_confidence": 0.92,
+      "quality_flags": []
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "q001",
+      "question_number": "1",
+      "question_type_candidate": "open_response",
+      "page_id": "p01",
+      "confidence": 0.91,
+      "risk_flags": [],
+      "regions": [
+        {
+          "region_id": "reg_p01_q001",
+          "region_role": "question_region",
+          "page_id": "p01",
+          "bbox": { "x1": 0.09, "y1": 0.14, "x2": 0.9, "y2": 0.55, "coord_space": "normalized" },
+          "polygon": {
+            "coord_space": "normalized",
+            "points": [
+              { "x": 0.09, "y": 0.14 },
+              { "x": 0.9, "y": 0.14 },
+              { "x": 0.9, "y": 0.55 },
+              { "x": 0.09, "y": 0.55 }
+            ]
+          },
+          "crop_ref": "crop://synthetic/provider_adapter_material_001/p01/q001",
+          "confidence": 0.91
+        }
+      ],
+      "evidences": [
+        {
+          "evidence_id": "ev_provider_stem_001",
+          "evidence_type": "question_stem",
+          "text": "一次函数应用题：根据表格建立关系式。",
+          "page_id": "p01",
+          "region_id": "reg_p01_q001",
+          "bbox": { "x1": 0.12, "y1": 0.18, "x2": 0.82, "y2": 0.26, "coord_space": "normalized" },
+          "crop_ref": "crop://synthetic/provider_adapter_material_001/p01/q001/stem",
+          "confidence": 0.94
+        },
+        {
+          "evidence_id": "ev_provider_answer_001",
+          "evidence_type": "student_original_answer",
+          "text": "y=2x+1，未写取值范围。",
+          "page_id": "p01",
+          "region_id": "reg_p01_q001",
+          "bbox": { "x1": 0.12, "y1": 0.3, "x2": 0.82, "y2": 0.38, "coord_space": "normalized" },
+          "crop_ref": "crop://synthetic/provider_adapter_material_001/p01/q001/answer",
+          "confidence": 0.9
+        },
+        {
+          "evidence_id": "ev_provider_mark_001",
+          "evidence_type": "teacher_mark",
+          "text": "老师批注：漏取值范围，扣 1 分。",
+          "page_id": "p01",
+          "region_id": "reg_p01_q001",
+          "bbox": { "x1": 0.12, "y1": 0.4, "x2": 0.82, "y2": 0.46, "coord_space": "normalized" },
+          "crop_ref": "crop://synthetic/provider_adapter_material_001/p01/q001/teacher-mark",
+          "confidence": 0.91,
+          "teacher_verified": true
+        },
+        {
+          "evidence_id": "ev_provider_key_001",
+          "evidence_type": "answer_key",
+          "text": "标准答案：y=2x+1，x 为非负整数。",
+          "page_id": "p01",
+          "region_id": "reg_p01_q001",
+          "bbox": { "x1": 0.12, "y1": 0.47, "x2": 0.82, "y2": 0.52, "coord_space": "normalized" },
+          "crop_ref": "crop://synthetic/provider_adapter_material_001/p01/q001/answer-key",
+          "confidence": 0.95,
+          "teacher_verified": true
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "fixture_kind": "provider_adapter_smoke",
+    "privacy": "synthetic_no_real_student_material"
+  }
+}

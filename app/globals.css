@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --app-bg: #f7f8fa;
+  --app-panel: #ffffff;
+  --app-panel-soft: #f3f4f6;
+  --app-panel-deep: #e5e7eb;
+  --app-text: #111827;
+  --app-text-muted: #6b7280;
+  --app-text-soft: #9ca3af;
+  --app-line: rgba(17, 24, 39, 0.08);
+  --app-line-strong: rgba(17, 24, 39, 0.14);
+  --app-green: #16a34a;
+  --app-green-soft: #ecfdf3;
+  --app-red: #ef4444;
+  --app-red-soft: #fef2f2;
+  --app-empty: #d1d5db;
+  --app-blue: #3b82f6;
+  --app-shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --app-shadow-md: 0 20px 50px rgba(15, 23, 42, 0.08);
+  --xuemai-primary-container: #22c55e;
+  --xuemai-primary: #006e2f;
+  --xuemai-surface: #f8f9fa;
+  --xuemai-surface-container-lowest: #ffffff;
+  --xuemai-surface-container-low: #f3f4f5;
+  --xuemai-surface-container: #edeeef;
+  --xuemai-surface-container-high: #e7e8e9;
+  --xuemai-surface-container-highest: #e1e3e4;
+  --xuemai-secondary-container: #caead6;
+  --xuemai-on-surface: #191c1d;
+  --xuemai-on-surface-variant: #3d4a3d;
+  --xuemai-outline-variant: #bccbb9;
+  --xuemai-error: #ba1a1a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--app-bg);
+  color: var(--app-text);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+textarea,
+input,
+select,
+button {
+  font: inherit;
+}
+
+:where(button, a, input, textarea, select):focus-visible {
+  outline: 2px solid rgba(34, 197, 94, 0.42);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(34, 197, 94, 0.18);
+}
+
+.xuemai-chat-bg {
+  background-color: #f7f8f7;
+  background-image:
+    radial-gradient(rgba(34, 197, 94, 0.1) 0.55px, transparent 0.55px),
+    radial-gradient(rgba(25, 28, 29, 0.04) 0.55px, #f7f8f7 0.55px);
+  background-position: 0 0, 10px 10px;
+  background-size: 20px 20px;
+}
+
+.xuemai-chat-bg::before {
+  pointer-events: none;
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(247, 248, 247, 0.72), rgba(247, 248, 247, 0.92));
+}
+
+.xuemai-chat-bg > * {
+  position: relative;
+  z-index: 1;
+}
+
+.xuemai-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(61, 74, 61, 0.22) transparent;
+}
+
+.xuemai-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.xuemai-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.xuemai-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(61, 74, 61, 0.18);
+  border-radius: 999px;
+}
+
+.xuemai-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(61, 74, 61, 0.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

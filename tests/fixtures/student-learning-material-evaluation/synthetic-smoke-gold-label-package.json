@@ -1,0 +1,139 @@
+{
+  "fixture_schema": "student_learning_material_gold_label_package.v0.1",
+  "package_id": "gold-label-synthetic-mainland-k12-math-exam-001",
+  "case_id": "synthetic-mainland-k12-math-exam-001",
+  "source_material_id": "synthetic_material_001",
+  "vision_packet_id": "synthetic_vision_packet_001",
+  "material_id": "synthetic_material_001",
+  "anonymization": {
+    "student_identifiers_removed": true,
+    "teacher_identifiers_removed": true,
+    "school_identifiers_removed": true,
+    "raw_images_excluded_from_gold_file": true
+  },
+  "labels": [
+    {
+      "label_id": "label-a-synthetic-mainland-k12-math-exam-001",
+      "reviewer_id": "reviewer-a",
+      "reviewer_role": "教研标注员",
+      "labeled_at": "2026-06-19T00:00:00.000Z",
+      "gold": {
+        "case_id": "synthetic-mainland-k12-math-exam-001",
+        "material_classification": {
+          "material_type": "exam",
+          "subject": "数学",
+          "education_stage": "middle",
+          "grade_candidate": "初二",
+          "region_or_curriculum_candidate": "江苏"
+        },
+        "questions": [
+          {
+            "question_id": "q001",
+            "expected_correctness": "partially_correct",
+            "definitive_judgement_allowed": true,
+            "expected_knowledge_points": ["一次函数应用"],
+            "expected_mistake_types": ["condition_extraction_error"]
+          },
+          {
+            "question_id": "q002",
+            "definitive_judgement_allowed": false
+          }
+        ],
+        "require_safe_parent_feedback": true,
+        "require_teacher_professional_report": true,
+        "require_monthly_snapshot": true,
+        "require_model_contract": true
+      },
+      "question_evidence_basis": [
+        {
+          "question_id": "q001",
+          "student_trace_evidence_refs": ["synthetic.material_001.q001.answer"],
+          "answer_key_or_rubric_evidence_refs": ["synthetic.material_001.q001.answer_key"],
+          "teacher_correction_evidence_refs": ["synthetic.material_001.q001.teacher_mark"]
+        },
+        {
+          "question_id": "q002",
+          "student_trace_evidence_refs": ["synthetic.material_001.q002.stem"]
+        }
+      ]
+    },
+    {
+      "label_id": "label-b-synthetic-mainland-k12-math-exam-001",
+      "reviewer_id": "reviewer-b",
+      "reviewer_role": "授课老师",
+      "labeled_at": "2026-06-19T00:10:00.000Z",
+      "gold": {
+        "case_id": "synthetic-mainland-k12-math-exam-001",
+        "material_classification": {
+          "material_type": "exam",
+          "subject": "数学",
+          "education_stage": "middle",
+          "grade_candidate": "初二",
+          "region_or_curriculum_candidate": "江苏"
+        },
+        "questions": [
+          {
+            "question_id": "q001",
+            "expected_correctness": "partially_correct",
+            "definitive_judgement_allowed": true,
+            "expected_knowledge_points": ["一次函数应用"],
+            "expected_mistake_types": ["condition_extraction_error"]
+          },
+          {
+            "question_id": "q002",
+            "definitive_judgement_allowed": false
+          }
+        ],
+        "require_safe_parent_feedback": true,
+        "require_teacher_professional_report": true,
+        "require_monthly_snapshot": true,
+        "require_model_contract": true
+      },
+      "question_evidence_basis": [
+        {
+          "question_id": "q001",
+          "student_trace_evidence_refs": ["synthetic.material_001.q001.answer"],
+          "answer_key_or_rubric_evidence_refs": ["synthetic.material_001.q001.answer_key"],
+          "teacher_correction_evidence_refs": ["synthetic.material_001.q001.teacher_mark"]
+        },
+        {
+          "question_id": "q002",
+          "student_trace_evidence_refs": ["synthetic.material_001.q002.stem"]
+        }
+      ]
+    }
+  ],
+  "adjudicated_gold": {
+    "case_id": "synthetic-mainland-k12-math-exam-001",
+    "material_classification": {
+      "material_type": "exam",
+      "subject": "数学",
+      "education_stage": "middle",
+      "grade_candidate": "初二",
+      "region_or_curriculum_candidate": "江苏"
+    },
+    "questions": [
+      {
+        "question_id": "q001",
+        "expected_correctness": "partially_correct",
+        "definitive_judgement_allowed": true,
+        "expected_knowledge_points": ["一次函数应用"],
+        "expected_mistake_types": ["condition_extraction_error"]
+      },
+      {
+        "question_id": "q002",
+        "definitive_judgement_allowed": false
+      }
+    ],
+    "require_safe_parent_feedback": true,
+    "require_teacher_professional_report": true,
+    "require_monthly_snapshot": true,
+    "require_model_contract": true
+  },
+  "adjudicated_by": {
+    "reviewer_id": "reviewer-adjudicator",
+    "reviewer_role": "教研负责人",
+    "adjudicated_at": "2026-06-19T00:20:00.000Z",
+    "notes": ["Synthetic smoke fixture for validator command only."]
+  }
+}

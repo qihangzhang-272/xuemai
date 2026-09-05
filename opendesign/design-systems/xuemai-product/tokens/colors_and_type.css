@@ -1,0 +1,38 @@
+:root {
+  --xm-bg-canvas: #f7f8fa;
+  --xm-bg-panel: #ffffff;
+  --xm-bg-subtle: #f3f4f5;
+  --xm-bg-selected: #eefbf2;
+  --xm-fg-primary: #191c1d;
+  --xm-fg-secondary: #3d4a3d;
+  --xm-fg-muted: #6b7280;
+  --xm-fg-soft: #9ca3af;
+  --xm-border-subtle: rgba(25, 28, 29, 0.09);
+  --xm-border-strong: #bccbb9;
+  --xm-accent: #22c55e;
+  --xm-accent-strong: #006e2f;
+  --xm-accent-soft: #dcfce7;
+  --xm-warning: #b45309;
+  --xm-warning-soft: #fff7ed;
+  --xm-danger: #ba1a1a;
+  --xm-danger-soft: #fef2f2;
+
+  --xm-font-ui: "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  --xm-text-hero: 28px/1.25 var(--xm-font-ui);
+  --xm-text-title: 20px/1.35 var(--xm-font-ui);
+  --xm-text-section: 16px/1.4 var(--xm-font-ui);
+  --xm-text-body: 14px/1.65 var(--xm-font-ui);
+  --xm-text-control: 13px/1.2 var(--xm-font-ui);
+  --xm-text-caption: 12px/1.4 var(--xm-font-ui);
+
+  --xm-radius-sm: 10px;
+  --xm-radius-md: 14px;
+  --xm-radius-lg: 20px;
+  --xm-shadow-soft: 0 8px 24px rgba(15, 23, 42, 0.05);
+  --xm-space-1: 4px;
+  --xm-space-2: 8px;
+  --xm-space-3: 12px;
+  --xm-space-4: 16px;
+  --xm-space-5: 20px;
+  --xm-space-6: 24px;
+}

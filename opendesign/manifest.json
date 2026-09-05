@@ -1,0 +1,47 @@
+{
+  "generated": "2026-08-07T02:20:00.000Z",
+  "sections": [
+    {
+      "id": "mockups",
+      "label": "Mockups",
+      "groups": [
+        {
+          "slug": "teacher-service-workbench",
+          "files": [
+            {
+              "label": "教师痛点工作台",
+              "path": "mockups/teacher-service-workbench/index.html"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "design-systems",
+      "label": "Design Systems",
+      "groups": [
+        {
+          "slug": "xuemai-product",
+          "files": [
+            {
+              "label": "设计系统说明",
+              "path": "design-systems/xuemai-product/README.md"
+            },
+            {
+              "label": "设计令牌",
+              "path": "design-systems/xuemai-product/tokens/colors_and_type.css"
+            },
+            {
+              "label": "文案语气",
+              "path": "design-systems/xuemai-product/brand/voice-and-tone.md"
+            },
+            {
+              "label": "设计规则",
+              "path": "design-systems/xuemai-product/SKILL.md"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

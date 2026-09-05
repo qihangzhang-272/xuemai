@@ -1,0 +1,13 @@
+{
+  "fixture_schema": "student_learning_material_evaluation_assets.v0.1",
+  "dataset_id": "synthetic-asset-manifest-smoke",
+  "dataset_kind": "human_labeled",
+  "description": "Synthetic asset manifest used only to smoke-test validate:k12-eval-assets command wiring.",
+  "cases": [
+    {
+      "case_id": "synthetic-asset-case-001",
+      "vision_packet_path": "vision-packet.json",
+      "gold_label_package_path": "gold-label-package.json"
+    }
+  ]
+}

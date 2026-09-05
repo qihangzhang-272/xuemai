@@ -1,0 +1,133 @@
+{
+  "schema_version": "vision_evidence_packet.v0.4",
+  "plugin_run_id": "synthetic_asset_vision_001",
+  "material_id": "synthetic_asset_material_001",
+  "source_material_id": "synthetic_asset_material_001",
+  "student_id": "synthetic_student_001",
+  "student_identity_status": "confirmed",
+  "plugin_provider": "synthetic_vision_provider",
+  "plugin_model_version": "synthetic-v0.4",
+  "material_state": "valid_student_material",
+  "created_at": "2026-06-19T00:00:00.000Z",
+  "pages": [
+    {
+      "page_id": "p01",
+      "page_index": 1,
+      "page_image_ref": "synthetic://asset-manifest/p01.png",
+      "width": 1440,
+      "height": 1920,
+      "image_quality_confidence": 0.91,
+      "quality_flags": []
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "q001",
+      "question_number": "1",
+      "question_type_candidate": "open_response",
+      "page_id": "p01",
+      "regions": [
+        {
+          "region_id": "reg_p01_q001",
+          "region_role": "question_region",
+          "page_id": "p01",
+          "bbox": { "x1": 0.1, "y1": 0.15, "x2": 0.88, "y2": 0.52, "coord_space": "normalized" },
+          "crop_ref": "crop://synthetic_asset_material_001/p01/q001",
+          "confidence": 0.9
+        }
+      ],
+      "confidence": 0.9,
+      "risk_flags": []
+    }
+  ],
+  "evidences": [
+    {
+      "evidence_id": "ev_asset_stem_001",
+      "evidence_ref": "synthetic.asset.q001.stem",
+      "source_material_id": "synthetic_asset_material_001",
+      "page_id": "p01",
+      "question_id": "q001",
+      "region_id": "reg_p01_q001",
+      "evidence_type": "question_stem",
+      "text": "一次函数应用题：根据表格建立关系式。",
+      "raw_ocr_text": "一次函数应用题：根据表格建立关系式。",
+      "normalized_text": "一次函数应用题：根据表格建立关系式。",
+      "bbox": { "x1": 0.12, "y1": 0.22, "x2": 0.82, "y2": 0.42, "coord_space": "normalized" },
+      "crop_ref": "crop://synthetic_asset_material_001/p01/q001/stem",
+      "confidence": 0.92,
+      "teacher_verified": false,
+      "risk_flags": []
+    },
+    {
+      "evidence_id": "ev_asset_answer_001",
+      "evidence_ref": "synthetic.asset.q001.answer",
+      "source_material_id": "synthetic_asset_material_001",
+      "page_id": "p01",
+      "question_id": "q001",
+      "region_id": "reg_p01_q001",
+      "evidence_type": "student_original_answer",
+      "text": "y=2x+1，未写取值范围。",
+      "raw_ocr_text": "y=2x+1，未写取值范围。",
+      "normalized_text": "y=2x+1，未写取值范围。",
+      "bbox": { "x1": 0.12, "y1": 0.32, "x2": 0.82, "y2": 0.42, "coord_space": "normalized" },
+      "crop_ref": "crop://synthetic_asset_material_001/p01/q001/answer",
+      "confidence": 0.9,
+      "teacher_verified": false,
+      "risk_flags": []
+    },
+    {
+      "evidence_id": "ev_asset_mark_001",
+      "evidence_ref": "synthetic.asset.q001.teacher_mark",
+      "source_material_id": "synthetic_asset_material_001",
+      "page_id": "p01",
+      "question_id": "q001",
+      "region_id": "reg_p01_q001",
+      "evidence_type": "teacher_mark",
+      "text": "老师批注：漏取值范围，扣 1 分。",
+      "raw_ocr_text": "老师批注：漏取值范围，扣 1 分。",
+      "normalized_text": "老师批注：漏取值范围，扣 1 分。",
+      "bbox": { "x1": 0.12, "y1": 0.42, "x2": 0.82, "y2": 0.48, "coord_space": "normalized" },
+      "crop_ref": "crop://synthetic_asset_material_001/p01/q001/teacher_mark",
+      "confidence": 0.92,
+      "teacher_verified": true,
+      "risk_flags": []
+    },
+    {
+      "evidence_id": "ev_asset_key_001",
+      "evidence_ref": "synthetic.asset.q001.answer_key",
+      "source_material_id": "synthetic_asset_material_001",
+      "page_id": "p01",
+      "question_id": "q001",
+      "region_id": "reg_p01_q001",
+      "evidence_type": "answer_key",
+      "text": "标准答案：y=2x+1，x 为非负整数。",
+      "raw_ocr_text": "标准答案：y=2x+1，x 为非负整数。",
+      "normalized_text": "标准答案：y=2x+1，x 为非负整数。",
+      "bbox": { "x1": 0.12, "y1": 0.5, "x2": 0.82, "y2": 0.58, "coord_space": "normalized" },
+      "crop_ref": "crop://synthetic_asset_material_001/p01/q001/answer_key",
+      "confidence": 0.96,
+      "teacher_verified": true,
+      "risk_flags": []
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "student_trace",
+      "status": "pass",
+      "reason": "包含学生作答和老师批改。",
+      "evidenceRefs": ["synthetic.asset.q001.answer", "synthetic.asset.q001.teacher_mark"],
+      "risk_flags": []
+    },
+    {
+      "gate_id": "answer_key",
+      "status": "pass",
+      "reason": "包含标准答案和评分点。",
+      "evidenceRefs": ["synthetic.asset.q001.answer_key"],
+      "risk_flags": []
+    }
+  ],
+  "plugin_errors": [],
+  "metadata": {
+    "fixture_id": "synthetic_asset_manifest"
+  }
+}

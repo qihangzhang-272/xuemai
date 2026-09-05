@@ -1,0 +1,199 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3600" height="2680" viewBox="0 0 3600 2680">
+  <defs>
+    <style>
+      .bg { fill: #f6f4f0; }
+      .panel { fill: rgba(255,255,252,.82); stroke: rgba(34,34,34,.08); stroke-width: 1; }
+      .soft { fill: #f4f2ee; }
+      .deep { fill: #eeeae4; }
+      .ink { fill: #191919; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif; }
+      .muted { fill: #64615c; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif; }
+      .subtle { fill: #9b968e; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif; }
+      .whiteText { fill: #fff; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif; }
+      .title { font-size: 34px; font-weight: 650; letter-spacing: -0.02em; }
+      .h2 { font-size: 24px; font-weight: 620; }
+      .body { font-size: 15px; font-weight: 450; }
+      .small { font-size: 12px; font-weight: 450; }
+      .nav { font-size: 15px; font-weight: 560; }
+      .green { fill: #8caf7c; }
+      .red { fill: #ef6c61; }
+      .blue { fill: #4e85f7; }
+      .dark { fill: #22201e; }
+      .line { stroke: rgba(34,34,34,.12); stroke-width: 1; fill: none; }
+      .emptyDot { fill: transparent; stroke: #d5d1ca; stroke-width: 2; stroke-dasharray: 4 3; }
+      .shadow { filter: drop-shadow(0 18px 36px rgba(40,35,28,.08)); }
+    </style>
+  </defs>
+
+  <rect width="3600" height="2680" class="bg"/>
+
+  <!-- 01 -->
+  <g id="01-class-expanded" transform="translate(80 80)">
+    <text x="0" y="-22" class="ink h2">01 / 班级模式 - 侧栏展开</text>
+    <rect width="1600" height="720" rx="34" class="panel shadow"/>
+    <rect x="24" y="24" width="226" height="672" rx="30" class="panel"/>
+    <circle cx="66" cy="70" r="20" class="dark"/>
+    <text x="96" y="78" class="ink h2">AI 反馈</text>
+    <rect x="48" y="138" width="176" height="48" rx="16" class="soft"/>
+    <text x="82" y="168" class="ink nav">班级模式</text>
+    <rect x="48" y="198" width="176" height="48" rx="16" fill="transparent"/>
+    <text x="82" y="228" class="muted nav">学生档案</text>
+    <rect x="48" y="258" width="176" height="48" rx="16" fill="transparent"/>
+    <text x="82" y="288" class="muted nav">月度总结</text>
+    <rect x="48" y="318" width="176" height="48" rx="16" fill="transparent"/>
+    <text x="82" y="348" class="muted nav">设置</text>
+    <circle cx="228" cy="48" r="17" class="soft"/>
+    <text x="222" y="54" class="muted small">‹</text>
+    <rect x="48" y="604" width="176" height="56" rx="18" class="soft"/>
+    <circle cx="78" cy="632" r="18" fill="#ddd4ca"/>
+    <text x="108" y="630" class="ink small">张老师</text>
+    <text x="108" y="648" class="subtle small">初中数学</text>
+
+    <rect x="290" y="28" width="1240" height="60" rx="26" fill="transparent"/>
+    <rect x="510" y="28" width="176" height="54" rx="22" class="soft"/>
+    <text x="552" y="64" class="ink h2">初二 5 班⌄</text>
+    <rect x="706" y="34" width="130" height="42" rx="21" class="dark"/>
+    <text x="742" y="61" class="whiteText body">班级模式</text>
+    <rect x="1320" y="36" width="150" height="40" rx="20" fill="rgba(255,255,255,.68)" stroke="rgba(34,34,34,.12)"/>
+    <circle cx="1342" cy="56" r="5" class="green"/>
+    <text x="1358" y="61" class="muted small">AI 已连接</text>
+
+    <text x="310" y="146" class="subtle body">班级模式</text>
+    <text x="310" y="196" class="ink title">从班级进入每个学生的微信反馈任务</text>
+    <rect x="310" y="240" width="270" height="350" rx="26" class="soft"/>
+    <text x="336" y="280" class="ink h2">重点关注</text>
+    <g transform="translate(336 308)">
+      <rect width="220" height="60" rx="17" fill="rgba(255,255,255,.72)"/><rect x="14" y="14" width="4" height="32" rx="2" fill="#cdc7bd"/><text x="32" y="26" class="ink small">林一诺</text><text x="32" y="46" class="muted small">审题弱 · 待生成反馈</text>
+      <rect y="72" width="220" height="60" rx="17" fill="rgba(255,255,255,.72)"/><rect x="14" y="86" width="4" height="32" rx="2" fill="#cdc7bd"/><text x="32" y="98" class="ink small">顾清越</text><text x="32" y="118" class="muted small">漏条件 · 待生成反馈</text>
+      <rect y="144" width="220" height="60" rx="17" fill="rgba(255,255,255,.72)"/><rect x="14" y="158" width="4" height="32" rx="2" fill="#cdc7bd"/><text x="32" y="170" class="ink small">陈星河</text><text x="32" y="190" class="muted small">暂无试卷提交</text>
+    </g>
+
+    <rect x="620" y="240" width="470" height="350" rx="30" fill="rgba(255,255,255,.48)" stroke="rgba(34,34,34,.12)"/>
+    <text x="648" y="282" class="ink h2">周三数学提升班</text>
+    <text x="648" y="310" class="muted body">数学 · 每周三 19:00</text>
+    <g transform="translate(660 350)">
+      <circle cx="0" cy="0" r="24" class="red"/><text x="-12" y="5" class="whiteText small">一诺</text>
+      <circle cx="72" cy="0" r="24" class="emptyDot"/><text x="60" y="5" class="muted small">星河</text>
+      <circle cx="144" cy="0" r="24" class="green"/><text x="132" y="5" class="whiteText small">知夏</text>
+      <circle cx="216" cy="0" r="24" class="red"/><text x="204" y="5" class="whiteText small">清越</text>
+      <circle cx="288" cy="0" r="24" class="emptyDot"/><text x="276" y="5" class="muted small">南星</text>
+    </g>
+    <rect x="650" y="430" width="150" height="36" rx="18" fill="#fff0ed"/><text x="676" y="453" class="muted small">待反馈 2</text>
+    <rect x="812" y="430" width="150" height="36" rx="18" fill="#edf5e8"/><text x="838" y="453" class="muted small">已生成 1</text>
+    <rect x="650" y="480" width="280" height="42" rx="21" class="dark"/><text x="742" y="507" class="whiteText body">生成微信反馈</text>
+
+    <rect x="1120" y="240" width="320" height="350" rx="30" class="soft"/>
+    <text x="1148" y="282" class="ink h2">选中学生</text>
+    <text x="1148" y="324" class="ink title">林一诺</text>
+    <text x="1148" y="360" class="muted body">核心问题：审题弱</text>
+    <text x="1148" y="392" class="muted body">状态：待生成微信反馈</text>
+    <rect x="1148" y="438" width="188" height="44" rx="22" class="dark"/>
+    <text x="1195" y="466" class="whiteText body">进入学生档案</text>
+  </g>
+
+  <!-- 02 -->
+  <g id="02-class-collapsed" transform="translate(1800 80)">
+    <text x="0" y="-22" class="ink h2">02 / 班级模式 - 侧栏折叠</text>
+    <rect width="1600" height="720" rx="34" class="panel shadow"/>
+    <rect x="24" y="24" width="78" height="672" rx="30" class="panel"/>
+    <circle cx="63" cy="70" r="20" class="dark"/>
+    <circle cx="96" cy="48" r="17" class="soft"/><text x="91" y="54" class="muted small">›</text>
+    <rect x="44" y="138" width="38" height="38" rx="14" class="soft"/>
+    <rect x="44" y="198" width="38" height="38" rx="14" fill="transparent" stroke="rgba(34,34,34,.1)"/>
+    <rect x="44" y="258" width="38" height="38" rx="14" fill="transparent" stroke="rgba(34,34,34,.1)"/>
+    <circle cx="63" cy="632" r="20" fill="#ddd4ca"/>
+    <text x="142" y="146" class="subtle body">侧栏折叠后，主画布获得更多横向空间</text>
+    <text x="142" y="196" class="ink title">学生圆点更小，更像状态点阵</text>
+    <rect x="142" y="250" width="660" height="280" rx="30" fill="rgba(255,255,255,.48)" stroke="rgba(34,34,34,.12)"/>
+    <text x="172" y="294" class="ink h2">周三数学提升班</text>
+    <g transform="translate(190 350)">
+      <circle cx="0" cy="0" r="22" class="red"/><text x="-12" y="5" class="whiteText small">一诺</text>
+      <circle cx="64" cy="0" r="22" class="emptyDot"/><text x="52" y="5" class="muted small">星河</text>
+      <circle cx="128" cy="0" r="22" class="green"/><text x="116" y="5" class="whiteText small">知夏</text>
+      <circle cx="192" cy="0" r="22" class="red"/><text x="180" y="5" class="whiteText small">清越</text>
+      <circle cx="256" cy="0" r="22" class="emptyDot"/><text x="244" y="5" class="muted small">南星</text>
+      <circle cx="320" cy="0" r="22" class="green"/><text x="308" y="5" class="whiteText small">予安</text>
+      <circle cx="384" cy="0" r="22" class="red"/><text x="372" y="5" class="whiteText small">安然</text>
+    </g>
+  </g>
+
+  <!-- 03 -->
+  <g id="03-student-profile" transform="translate(80 900)">
+    <text x="0" y="-22" class="ink h2">03 / 学生档案</text>
+    <rect width="1600" height="720" rx="34" class="panel shadow"/>
+    <rect x="40" y="38" width="98" height="42" rx="21" class="soft"/><text x="68" y="65" class="muted body">返回</text>
+    <text x="80" y="146" class="subtle body">五年级 · 数学</text>
+    <text x="80" y="196" class="ink title">林一诺</text>
+    <text x="80" y="232" class="muted body">基础稳定，应用题易漏条件。核心问题是审题弱。</text>
+    <rect x="1080" y="110" width="360" height="130" rx="28" class="dark"/>
+    <text x="1110" y="152" class="whiteText small">本次学习摘要</text>
+    <text x="1110" y="190" class="whiteText h2">审题弱</text>
+    <text x="1110" y="220" class="whiteText body">待生成微信反馈</text>
+    <g transform="translate(80 300)">
+      <rect width="310" height="220" rx="28" class="soft"/><text x="28" y="44" class="ink h2">试卷记录</text><text x="28" y="82" class="muted body">6 条记录</text><text x="28" y="126" class="muted body">分数应用题单元测</text>
+      <rect x="340" width="310" height="220" rx="28" class="soft"/><text x="368" y="44" class="ink h2">错题沉淀</text><text x="368" y="82" class="muted body">8 道错题</text><text x="368" y="126" class="muted body">单位 1 判断</text>
+      <rect x="680" width="310" height="220" rx="28" class="soft"/><text x="708" y="44" class="ink h2">月度总结</text><text x="708" y="82" class="muted body">1 份草稿</text><text x="708" y="126" class="muted body">月底集中整理</text>
+      <rect x="1030" y="36" width="210" height="48" rx="24" class="dark"/><text x="1084" y="67" class="whiteText body">生成微信反馈</text>
+      <rect x="1030" y="102" width="210" height="48" rx="24" fill="rgba(255,255,255,.7)" stroke="rgba(34,34,34,.12)"/><text x="1084" y="133" class="muted body">查看月度总结</text>
+    </g>
+  </g>
+
+  <!-- 04 -->
+  <g id="04-wechat-feedback" transform="translate(1800 900)">
+    <text x="0" y="-22" class="ink h2">04 / 微信反馈生成</text>
+    <rect width="1600" height="720" rx="34" class="panel shadow"/>
+    <rect x="40" y="38" width="98" height="42" rx="21" class="soft"/><text x="68" y="65" class="muted body">返回</text>
+    <text x="80" y="146" class="subtle body">林一诺 · 周三数学提升班</text>
+    <text x="80" y="196" class="ink title">微信反馈生成</text>
+    <rect x="80" y="250" width="620" height="340" rx="30" class="panel"/>
+    <text x="116" y="296" class="ink h2">试卷录入</text>
+    <rect x="116" y="330" width="548" height="88" rx="24" class="soft"/><text x="146" y="380" class="muted body">拍照或上传试卷 · 占位</text>
+    <rect x="116" y="440" width="260" height="54" rx="18" fill="rgba(255,255,255,.7)" stroke="rgba(34,34,34,.12)"/><text x="142" y="474" class="muted body">考试主题</text>
+    <rect x="404" y="440" width="260" height="54" rx="18" fill="rgba(255,255,255,.7)" stroke="rgba(34,34,34,.12)"/><text x="430" y="474" class="muted body">试卷表现</text>
+    <rect x="116" y="520" width="210" height="48" rx="24" class="dark"/><text x="164" y="551" class="whiteText body">生成微信反馈</text>
+    <rect x="760" y="250" width="620" height="340" rx="30" class="panel"/>
+    <text x="796" y="296" class="ink h2">微信反馈草稿</text>
+    <rect x="796" y="330" width="548" height="190" rx="24" class="dark"/>
+    <text x="826" y="372" class="whiteText body">林一诺妈妈您好，本次试卷主要反映出分数应用题...</text>
+    <text x="826" y="412" class="whiteText body">建议先让孩子每题写出单位 1，再进入列式。</text>
+    <rect x="796" y="540" width="170" height="46" rx="23" class="soft"/><text x="850" y="570" class="muted body">复制</text>
+    <rect x="980" y="540" width="210" height="46" rx="23" class="dark"/><text x="1030" y="570" class="whiteText body">保存并返回</text>
+  </g>
+
+  <!-- 05 -->
+  <g id="05-monthly-summary" transform="translate(80 1720)">
+    <text x="0" y="-22" class="ink h2">05 / 月度总结</text>
+    <rect width="1600" height="720" rx="34" class="panel shadow"/>
+    <rect x="40" y="38" width="98" height="42" rx="21" class="soft"/><text x="68" y="65" class="muted body">返回</text>
+    <text x="80" y="146" class="subtle body">2026-05 · 林一诺</text>
+    <text x="80" y="196" class="ink title">5 月微信反馈沉淀总结</text>
+    <rect x="80" y="250" width="420" height="260" rx="30" class="soft"/><text x="112" y="296" class="ink h2">摘要</text><text x="112" y="338" class="muted body">本月共沉淀 6 次试卷反馈。</text><text x="112" y="374" class="muted body">主要问题：审题弱、单位 1 判断。</text>
+    <rect x="540" y="250" width="420" height="260" rx="30" class="soft"/><text x="572" y="296" class="ink h2">关键进展</text><text x="572" y="338" class="muted body">计算稳定性保持良好。</text><text x="572" y="374" class="muted body">读题流程开始建立。</text>
+    <rect x="1000" y="250" width="420" height="260" rx="30" class="soft"/><text x="1032" y="296" class="ink h2">下月建议</text><text x="1032" y="338" class="muted body">继续短频训练单位 1。</text><text x="1032" y="374" class="muted body">每次只保留 1 个核心问题。</text>
+  </g>
+
+  <!-- 06 -->
+  <g id="06-rules" transform="translate(1800 1720)">
+    <text x="0" y="-22" class="ink h2">06 / 组件与按钮逻辑规范</text>
+    <rect width="1600" height="720" rx="34" class="panel shadow"/>
+    <text x="80" y="98" class="ink title">按钮出现规则</text>
+    <g transform="translate(80 150)">
+      <rect width="420" height="70" rx="22" class="soft"/><text x="28" y="43" class="ink body">一级页面：不显示返回按钮</text>
+      <rect y="88" width="420" height="70" rx="22" class="soft"/><text x="28" y="131" class="ink body">二级页面：显示返回按钮</text>
+      <rect y="176" width="420" height="70" rx="22" class="soft"/><text x="28" y="219" class="ink body">班级选择：只在班级页出现</text>
+      <rect y="264" width="420" height="70" rx="22" class="soft"/><text x="28" y="307" class="ink body">AI 状态：只在生成任务相关页面出现</text>
+    </g>
+    <text x="600" y="98" class="ink title">组件尺寸</text>
+    <g transform="translate(600 150)">
+      <circle cx="24" cy="24" r="22" class="red"/><text x="70" y="30" class="ink body">学生状态点：44-52px</text>
+      <rect y="76" width="340" height="54" rx="27" class="dark"/><text x="112" y="110" class="whiteText body">主按钮</text>
+      <rect y="150" width="340" height="54" rx="27" fill="rgba(255,255,255,.7)" stroke="rgba(34,34,34,.12)"/><text x="112" y="184" class="muted body">次按钮</text>
+    </g>
+    <text x="1040" y="98" class="ink title">风格规避</text>
+    <g transform="translate(1040 150)">
+      <text y="0" class="muted body">不要飞书风：密集表格、企业蓝、复杂后台。</text>
+      <text y="46" class="muted body">不要维基百科风：默认蓝链接、大段裸文本。</text>
+      <text y="92" class="muted body">保持：暖灰背景、柔和阴影、少按钮、少图标。</text>
+      <text y="138" class="muted body">内容以任务流分组，不做信息大屏。</text>
+    </g>
+  </g>
+</svg>
