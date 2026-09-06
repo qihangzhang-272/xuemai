@@ -15,7 +15,7 @@ export const emptyState: ChatState = {
 export async function backend<T>(path: string, body?: unknown, method = "POST"): Promise<T> {
   const response = await fetch(`/api/xuemai/${path}`, body === undefined ? { cache: "no-store" } : {
     method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  });
+  }).catch(() => { throw new Error("连接暂时中断，请检查连接后重试。"); });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "操作未完成，请重试");
   return data;
@@ -23,10 +23,10 @@ export async function backend<T>(path: string, body?: unknown, method = "POST"):
 export function recordId(task: Pick<TaskCard, "id">) { return task.id.replace(/:feedback$/, ""); }
 export function isFeedback(task: Pick<TaskCard, "id">) { return task.id.endsWith(":feedback"); }
 export const recordSkill: Record<LearningRecord["kind"], SkillId> = {
-  record: "update_learning_record", analysis: "analyze_learning_evidence", prep: "next_lesson_plan", monthly: "monthly_report",
+  record: "update_learning_record", analysis: "analyze_learning_evidence", prep: "next_lesson_plan", monthly: "monthly_report", daily: "monthly_report",
 };
 const taskType: Record<LearningRecord["kind"], TaskType> = {
-  record: "learning_record", analysis: "learning_evidence_analysis", prep: "lesson_suggestion", monthly: "monthly_report",
+  record: "learning_record", analysis: "learning_evidence_analysis", prep: "lesson_suggestion", monthly: "monthly_report", daily: "monthly_report",
 };
 export function toTask(record: LearningRecord, contact: Conversation, feedback = false): TaskCard {
   const text = feedback ? record.feedback : record.content;
@@ -55,7 +55,7 @@ export function toTask(record: LearningRecord, contact: Conversation, feedback =
     detail: record.error || text, originalOutput: { display_content: original, structured_result: {} },
     currentOutput: { display_content: text, structured_result: {} },
     archivedOutput: !feedback && record.archiveContent ? { display_content: record.archiveContent, structured_result: {} } : undefined,
-    structuredResult: { evidence: record.evidence, sourceIds: record.sourceIds, locked: feedback ? record.feedbackStatus === "sent" : locked }, actions, nextSuggestions: [],
+    structuredResult: { evidence: record.evidence, recordKind: record.kind, date: record.date, month: record.month, sourceIds: record.sourceIds, locked: feedback ? record.feedbackStatus === "sent" : locked }, actions, nextSuggestions: [],
     contextSources: [{ id: record.id, label: "老师提交的课堂记录与材料", type: "teacher_input" }],
     archiveTarget: contact.kind === "class" ? "班级课堂记录" : "学生档案 > 学习记录",
     createdAt: record.createdAt, updatedAt: record.updatedAt,
@@ -102,7 +102,7 @@ export function toChatState(snapshot: Snapshot): ChatState {
       id: `${r.id}:archive`, conversationId: r.contactId, sourceTaskId: r.id, skillId: recordSkill[r.kind],
       title: r.title, summary: r.archiveContent || "", archiveTarget: "学生档案 > 学习记录", createdAt: r.archivedAt!,
     })),
-    teacher: { contact: snapshot.teacher.identifier, nickname: snapshot.teacher.name, subjects: [snapshot.preferences.subject], teachingStages: [snapshot.preferences.grade], role: "individual" },
+    teacher: { contact: snapshot.teacher.identifier, nickname: snapshot.teacher.name, subjects: [snapshot.preferences.subject].filter(Boolean), teachingStages: [snapshot.preferences.grade].filter(Boolean), role: "individual" },
     preferences: { ...emptyState.preferences, feedbackTone: (["温和", "严谨", "鼓励型", "简洁型"] as const).find(t => snapshot.preferences.tone.includes(t)) || "温和" },
     currentConversationId: conversations[0]?.id || assistantConversation.id,
   };

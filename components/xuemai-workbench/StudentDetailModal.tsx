@@ -511,7 +511,7 @@ function buildTimelineItems(tasks: TaskCard[], records: TimelineRecord[]) {
 function getTimelineTitle(task: TaskCard) {
   if (task.taskType === "learning_evidence_analysis") return "学习材料分析";
   if (task.taskType === "feedback") return "微信反馈";
-  if (task.taskType === "monthly_report") return "月报";
+  if (task.taskType === "monthly_report") return task.structuredResult?.recordKind === "daily" ? "日报" : "月报";
   if (task.taskType === "learning_record") return "学习记录";
   return task.title.replace(/^.*? · /u, "");
 }

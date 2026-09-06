@@ -46,12 +46,14 @@ export function saveContact(owner: string, body: Record<string, unknown>) {
 export function createRecord(owner: string, body: Record<string, unknown>) {
   const contact = get(owner, "contact", text(body.contactId, "学生 / 班级", 100));
   const kind = body.kind as RecordKind;
-  if (!["record", "analysis", "prep", "monthly"].includes(kind)) throw new AppError("不支持的记录类型");
-  if (kind === "monthly" && contact.kind !== "student") throw new AppError("请选择一位学生生成月报");
+  if (!["record", "analysis", "prep", "monthly", "daily"].includes(kind)) throw new AppError("不支持的记录类型");
+  const isReport = kind === "monthly" || kind === "daily";
+  if (isReport && contact.kind !== "student") throw new AppError("请选择一位学生生成报告");
   const input = text(body.input ?? "", "记录内容", 40_000, false);
   const attachmentIds = strings(body.attachmentIds ?? [], "附件", 5);
   for (const id of attachmentIds) get(owner, "attachment", id);
-  if (kind !== "monthly" && !input && !attachmentIds.length) throw new AppError("请填写课堂观察或上传材料");
+  if (!isReport && !input && !attachmentIds.length) throw new AppError("请填写课堂观察或上传材料");
+  if (!attachmentIds.length && /今天讲了[…\.]+学生整体表现[…\.]+/.test(input)) throw new AppError("请把提示中的省略号替换为这节课的实际内容和表现");
   const month = kind === "monthly" ? text(body.month, "月份", 7) : "";
   if (month && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new AppError("月份格式不正确");
   const date = text(body.date, "日期", 10);
@@ -59,7 +61,7 @@ export function createRecord(owner: string, body: Record<string, unknown>) {
   const sourceIds = strings(body.sourceIds ?? [], "来源记录");
   for (const id of sourceIds) get(owner, "record", id);
   const record: LearningRecord = { id: randomUUID(), contactId: contact.id, kind,
-    title: kind === "monthly" ? `${month} 学习月报` : input.slice(0, 32) || "新材料",
+    title: kind === "monthly" ? `${month} 学习月报` : kind === "daily" ? `${date} 学习日报` : input.slice(0, 32) || "新材料",
     input, date, attachmentIds, month, createdAt: now(), updatedAt: now(), status: "draft", error: "",
     content: "", aiContent: "", feedback: "", aiFeedback: "", feedbackStatus: "none", archivedAt: null,
     archiveContent: null, sentContent: null, model: "", evidence: kind === "prep" ? "teaching" : "insufficient", sourceIds, revision: 0 };
@@ -85,7 +87,7 @@ export async function recordAction(owner: string, id: string, body: Record<strin
         if (action === "feedback") { item.feedback = result.content; item.aiFeedback = result.content; item.feedbackStatus = "pending"; }
         else {
           item.content = result.content; item.aiContent = result.content; item.title = result.title;
-          item.evidence = result.evidence; item.sourceIds = record.kind === "monthly" ? result.sourceIds : record.sourceIds;
+          item.evidence = result.evidence; item.sourceIds = ["monthly", "daily"].includes(record.kind) ? result.sourceIds : record.sourceIds;
           item.feedback = ""; item.aiFeedback = ""; item.feedbackStatus = "none";
         }
         item.model = result.model; item.status = "ready"; item.error = "";

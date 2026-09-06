@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { emptyState, isFeedback, recordId, toChatState } from "../components/xuemai-workbench/backend-adapter";
+import { describe, expect, it, vi } from "vitest";
+import { backend, emptyState, isFeedback, recordId, toChatState } from "../components/xuemai-workbench/backend-adapter";
 import { buildWorkItems } from "../components/xuemai-workbench/work-overview-model";
 import type { LearningRecord, Snapshot } from "../lib/xuemai/types";
 
@@ -17,6 +17,10 @@ const record = (patch: Partial<LearningRecord> = {}): LearningRecord => ({
   archivedAt: null, archiveContent: null, sentContent: null, model: "test", evidence: "observed", sourceIds: [], month: "", revision: 1, ...patch,
 });
 describe("原版前端的真实数据适配", () => {
+  it("连接失败时提示下一步，不向老师暴露英文浏览器错误", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(backend("records", {})).rejects.toThrow("连接暂时中断，请检查连接后重试");
+  });
   it("空账号不补演示学生、待办或档案", () => {
     const state = toChatState({ ...fixture(), contacts: [] });
     expect(state.conversations).toEqual(emptyState.conversations);

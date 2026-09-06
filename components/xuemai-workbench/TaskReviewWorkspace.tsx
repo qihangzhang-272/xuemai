@@ -7,7 +7,7 @@ type TaskReviewWorkspaceProps = {
   autoArchiveLearningEvidence: boolean;
   onBack: () => void;
   onAction?: (task: TaskCard, action: SkillAction) => void;
-  onEdit?: (task: TaskCard, value: string) => void;
+  onEdit?: (task: TaskCard, value: string) => void | Promise<boolean>;
   onReset?: (task: TaskCard) => void;
   onAutoArchiveLearningEvidenceChange?: (enabled: boolean) => void;
   onConfirmProfileUpdates?: (task: TaskCard, selectedSuggestionIds: string[]) => void;
@@ -35,7 +35,7 @@ export function TaskReviewWorkspace({
           </span>
           <div className="min-w-0">
             <h1 className="truncate text-[15px] font-bold text-[#191c1d]">{task.title}</h1>
-            <p className="mt-0.5 truncate text-[11px] font-semibold text-[#6b746d]">详情工作区 · 确认、编辑、入档和追踪操作</p>
+            <p className="mt-0.5 truncate text-[11px] font-semibold text-[#6b746d]">查看正文，按实际情况修改后再确认</p>
           </div>
         </div>
         <span className="rounded-full bg-[#f3f5f4] px-2.5 py-1 text-[11px] font-bold text-[#3d4a3d]">不会自动发给家长</span>

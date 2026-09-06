@@ -1,3 +1,4 @@
+import { TeachingContent } from "./TeachingContent";
 import { useEffect, useState } from "react";
 import { ChevronRight, PanelRightClose, PanelRightOpen, RotateCcw, Save, UsersRound, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,7 +38,7 @@ type ContextPanelProps = {
   onSelectStudent: (id: string) => void;
   onCloseReview?: () => void;
   onTaskAction?: (task: TaskCard, action: SkillAction) => void;
-  onTaskEdit?: (task: TaskCard, value: string) => void;
+  onTaskEdit?: (task: TaskCard, value: string) => void | Promise<boolean>;
   onTaskReset?: (task: TaskCard) => void;
   autoArchiveLearningEvidence?: boolean;
   onAutoArchiveLearningEvidenceChange?: (enabled: boolean) => void;
@@ -90,7 +91,7 @@ export function ContextPanel({ conversation, members, messages, taskCards, timel
   );
 }
 
-export function TaskReviewPanel({ task, autoArchiveLearningEvidence, onAction, onEdit, onReset, onAutoArchiveLearningEvidenceChange, onConfirmProfileUpdates }: { task: TaskCard; autoArchiveLearningEvidence?: boolean; onAction?: (task: TaskCard, action: SkillAction) => void; onEdit?: (task: TaskCard, value: string) => void; onReset?: (task: TaskCard) => void; onAutoArchiveLearningEvidenceChange?: (enabled: boolean) => void; onConfirmProfileUpdates?: (task: TaskCard, selectedSuggestionIds: string[]) => void }) {
+export function TaskReviewPanel({ task, autoArchiveLearningEvidence, onAction, onEdit, onReset, onAutoArchiveLearningEvidenceChange, onConfirmProfileUpdates }: { task: TaskCard; autoArchiveLearningEvidence?: boolean; onAction?: (task: TaskCard, action: SkillAction) => void; onEdit?: (task: TaskCard, value: string) => void | Promise<boolean>; onReset?: (task: TaskCard) => void; onAutoArchiveLearningEvidenceChange?: (enabled: boolean) => void; onConfirmProfileUpdates?: (task: TaskCard, selectedSuggestionIds: string[]) => void }) {
   if ((task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis") && getStudentLearningMaterialUserFacingResult(task)) {
     return <LearningMaterialUserResultPanel task={task} onAction={onAction} />;
   }
@@ -102,14 +103,16 @@ export function TaskReviewPanel({ task, autoArchiveLearningEvidence, onAction, o
   return <GenericTaskReviewPanel task={task} onAction={onAction} onEdit={onEdit} onReset={onReset} />;
 }
 
-function GenericTaskReviewPanel({ task, onAction, onEdit, onReset }: { task: TaskCard; onAction?: (task: TaskCard, action: SkillAction) => void; onEdit?: (task: TaskCard, value: string) => void; onReset?: (task: TaskCard) => void }) {
+function GenericTaskReviewPanel({ task, onAction, onEdit, onReset }: { task: TaskCard; onAction?: (task: TaskCard, action: SkillAction) => void; onEdit?: (task: TaskCard, value: string) => void | Promise<boolean>; onReset?: (task: TaskCard) => void }) {
   const version = getSkillCardVersionMeta(task);
   const statusCopy = getTaskCardStatusCopy(task.status, task);
   const reviewText = task.status === "archived" ? version.archivedText ?? version.currentText : version.currentText;
   const [draft, setDraft] = useState(reviewText);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setDraft(reviewText);
+    setDraft(reviewText); setEditing(false);
   }, [reviewText, task.id]);
 
   const running = task.status === "running";
@@ -124,14 +127,14 @@ function GenericTaskReviewPanel({ task, onAction, onEdit, onReset }: { task: Tas
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-base font-bold text-[#191c1d]">{getUserFacingTaskTitle(task)}</h3>
-            <p className="mt-1 text-xs font-semibold leading-5 text-[#6b746d]">{task.inputSummary ?? task.archiveTarget ?? "老师触发的教学任务"}</p>
+
           </div>
           <span className={cn("shrink-0 rounded-full px-2 py-1 text-[11px] font-bold", getReviewStatusTone(task.status))}>{statusCopy.label}</span>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-semibold text-[#6b746d]">
           <ReviewMeta label="入档目标" value={task.archiveTarget ?? "待入档"} />
           <ReviewMeta label="编辑状态" value={version.editLabel} />
-          <ReviewMeta label="可信度" value={formatConfidence(task.confidenceLevel)} />
+          {task.confidenceLevel ? <ReviewMeta label="可信度" value={formatConfidence(task.confidenceLevel)} /> : null}
           <ReviewMeta label="更新时间" value={formatShortTime(task.updatedAt)} />
         </div>
       </section>
@@ -144,17 +147,19 @@ function GenericTaskReviewPanel({ task, onAction, onEdit, onReset }: { task: Tas
           </div>
           {version.isEdited ? <span className="rounded-full bg-[#fff7ed] px-2 py-0.5 text-[11px] font-bold text-[#c2410c]">已编辑</span> : null}
         </div>
-        <textarea
+        {editing ? <textarea
+          aria-label="编辑详情正文"
           value={draft}
           rows={8}
-          disabled={running || locked}
+          disabled={running || locked || saving}
           onChange={(event) => setDraft(event.target.value)}
           className="w-full resize-none rounded-[14px] border border-[#dfe5e1] bg-[#fbfcfb] px-3 py-2.5 text-[13px] font-semibold leading-6 text-[#26312a] outline-none transition focus:border-[#9bd9ad] disabled:bg-[#f3f4f5] disabled:text-[#8a948d]"
-        />
+        /> : <TeachingContent text={reviewText} className="text-[13px] font-semibold leading-6 text-[#26312a]" />}
         <div className="flex flex-wrap items-center gap-1.5">
-          <button type="button" disabled={running || locked || !changed} onClick={() => onEdit?.(task, draft)} className="inline-flex h-8 items-center gap-1 rounded-full bg-[#22c55e] px-3 text-xs font-bold text-white transition hover:bg-[#16a34a] disabled:cursor-not-allowed disabled:bg-[#c2c8c3]">
+          {!locked && !editing ? <button type="button" disabled={running} onClick={() => setEditing(true)} className="h-8 rounded-full border border-[#bccbb9] px-3 text-xs font-bold">编辑正文</button> : null}
+          <button type="button" disabled={running || locked || !changed || saving} onClick={async () => { setSaving(true); try { if (await onEdit?.(task, draft) !== false) setEditing(false); } finally { setSaving(false); } }} className="inline-flex h-8 items-center gap-1 rounded-full bg-[#22c55e] px-3 text-xs font-bold text-white transition hover:bg-[#16a34a] disabled:cursor-not-allowed disabled:bg-[#c2c8c3]">
             <Save size={14} />
-            保存编辑
+            {saving ? "正在保存…" : "保存编辑"}
           </button>
           <button type="button" disabled={running || locked || !version.isEdited} onClick={() => onReset?.(task)} className="inline-flex h-8 items-center gap-1 rounded-full bg-[#f3f4f5] px-3 text-xs font-bold text-[#3d4a3d] transition hover:bg-[#e7e8e9] disabled:cursor-not-allowed disabled:opacity-40">
             <RotateCcw size={14} />
@@ -176,13 +181,10 @@ function GenericTaskReviewPanel({ task, onAction, onEdit, onReset }: { task: Tas
         </section>
       ) : null}
 
-      <ReviewSection title="处理记录">
-        <ActionTimeline items={actionTimeline} />
-      </ReviewSection>
+      {actionTimeline.length ? <ReviewSection title="处理记录"><ActionTimeline items={actionTimeline} /></ReviewSection> : null}
+      {task.inputSummary ? <details className="text-[13px] text-[#6b746d]"><summary className="cursor-pointer font-bold">查看本次输入</summary><p className="mt-2 whitespace-pre-wrap leading-6">{task.inputSummary}</p></details> : null}
 
-      <ReviewSection title="AI 原稿">
-        <p className="whitespace-pre-wrap text-[13px] font-medium leading-6 text-[#3d4a3d]">{version.originalText || "暂无 AI 原稿。"}</p>
-      </ReviewSection>
+      {version.isEdited ? <details className="text-[13px] text-[#6b746d]"><summary className="cursor-pointer font-bold">对照修改前的草稿</summary><TeachingContent text={version.originalText} className="mt-2 leading-6" /></details> : null}
     </div>
   );
 }
@@ -596,6 +598,7 @@ function TaskLine({ title, meta }: { title: string; meta: string }) {
 }
 
 function getUserFacingTaskTitle(task: TaskCard) {
+  if (task.structuredResult?.recordKind === "daily") return "学生日报";
   if (task.skillId === "generate_feedback" || task.skillId === "parent_communication" || task.taskType === "feedback") return "微信反馈";
   if (task.skillId === "update_learning_record" || task.taskType === "learning_record") return "学习记录";
   if (task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis") return "学情报告";

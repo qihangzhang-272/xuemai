@@ -1,3 +1,4 @@
+import { TeachingContent } from "./TeachingContent";
 import { useEffect, useState } from "react";
 import { FileText, FolderOpen, GraduationCap, MapPin, MessageSquareText, Plus, Send, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -205,7 +206,7 @@ export function SideChatPanel({
                 return (
                   <div key={message.id} className={cn("flex", teacher ? "justify-end" : "justify-start")}>
                     <div className={cn("max-w-[86%] rounded-[16px] px-3 py-2 text-[13px] font-medium leading-6", teacher ? "rounded-br-md bg-[#22c55e] text-white" : "rounded-bl-md bg-[#f3f5f4] text-[#26312a]")}>
-                      <p className="whitespace-pre-wrap">{message.content}</p>
+                      <TeachingContent text={message.content} />
                       <time dateTime={message.createdAt} title={formatFullTimestamp(message.createdAt)} className={cn("mt-1 block text-[10px] font-semibold", teacher ? "text-white/72" : "text-[#9aa19d]")}>
                         {formatChatTimestamp(message.createdAt)}
                       </time>
@@ -435,7 +436,7 @@ function LearningReportSideChat({
                 return (
                   <div key={message.id} className={cn("flex", teacher ? "justify-end" : "justify-start")}>
                     <div className={cn("max-w-[86%] rounded-[16px] px-3 py-2 text-[13px] font-medium leading-6", teacher ? "rounded-br-md bg-[#22c55e] text-white" : "rounded-bl-md bg-white text-[#26312a]")}>
-                      <p className="whitespace-pre-wrap">{message.content}</p>
+                      <TeachingContent text={message.content} />
                       <time dateTime={message.createdAt} title={formatFullTimestamp(message.createdAt)} className={cn("mt-1 block text-[10px] font-semibold", teacher ? "text-white/72" : "text-[#9aa19d]")}>
                         {formatChatTimestamp(message.createdAt)}
                       </time>
@@ -482,7 +483,7 @@ function MonthlyReportSideChat({
                 return (
                   <div key={message.id} className={cn("flex", teacher ? "justify-end" : "justify-start")}>
                     <div className={cn("max-w-[86%] rounded-[16px] px-3 py-2 text-[13px] font-medium leading-6", teacher ? "rounded-br-md bg-[#22c55e] text-white" : "rounded-bl-md bg-white text-[#26312a]")}>
-                      <p className="whitespace-pre-wrap">{message.content}</p>
+                      <TeachingContent text={message.content} />
                       <time dateTime={message.createdAt} title={formatFullTimestamp(message.createdAt)} className={cn("mt-1 block text-[10px] font-semibold", teacher ? "text-white/72" : "text-[#9aa19d]")}>
                         {formatChatTimestamp(message.createdAt)}
                       </time>

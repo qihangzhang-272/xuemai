@@ -1,6 +1,7 @@
 import Image from "next/image";
 import type React from "react";
-import { useState } from "react";
+import { TeachingContent } from "./TeachingContent";
+import { useEffect, useRef, useState } from "react";
 import { Bell, BookOpenCheck, CalendarClock, Check, ChevronRight, Clock3, FileImage, ImagePlus, Info, Menu, MessageSquareText, Paperclip, Plus, RotateCcw, Search, Send, Sparkles, User, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ActionButton, IconButton } from "./shared";
@@ -182,7 +183,7 @@ export function MessageRow({
   task?: TaskCard;
   conversation: Conversation;
   onSkillAction: (task: TaskCard, action: SkillAction) => void;
-  onSkillEdit?: (task: TaskCard, value: string) => void;
+  onSkillEdit?: (task: TaskCard, value: string) => void | Promise<boolean>;
   onSkillReview?: (task: TaskCard) => void;
   highlighted?: boolean;
 }) {
@@ -223,7 +224,7 @@ function TextMessage({ message }: { message: Message }) {
             </time>
             <ChevronRight size={12} />
           </div>
-          <p className="whitespace-pre-wrap text-[14px] font-medium leading-7 text-[#26312a]">{displayContent}</p>
+          <TeachingContent text={displayContent} className="text-[14px] font-medium leading-7 text-[#26312a]" />
         </div>
       </div>
     );
@@ -264,9 +265,9 @@ function ImageMessage({ message }: { message: Message }) {
       <div className="rounded-[18px_18px_6px_18px] bg-[#22c55e] p-2 text-white shadow-[0_10px_24px_rgba(34,197,94,0.18)]">
         <div className={cn(multiImage ? "flex max-w-[244px] flex-wrap gap-1.5" : "block")}>
           {attachments.map((attachment) => (
-            <div key={attachment.id} title={attachment.fileName} className="relative flex h-[72px] w-[120px] overflow-hidden rounded-[12px] bg-white/90 text-[#3d4a3d]">
-              {attachment.imageUrl ? <Image src={attachment.imageUrl} alt={attachment.fileName} fill className="object-cover" unoptimized /> : <FileImage className="m-auto text-[#22c55e]" size={30} />}
-            </div>
+            <a key={attachment.id} href={`/api/xuemai/attachments/${encodeURIComponent(attachment.id)}`} download={attachment.fileName} title={`下载 ${attachment.fileName}`} className="relative flex h-[72px] w-[120px] overflow-hidden rounded-[12px] bg-white/90 text-[#3d4a3d]">
+              {attachment.imageUrl ? <Image src={attachment.imageUrl} alt={attachment.fileName} fill className="object-cover" unoptimized /> : <span className="m-auto min-w-0 px-2 text-center"><FileImage className="mx-auto text-[#22c55e]" size={24} /><span className="mt-1 block truncate text-[11px]">{attachment.fileName}</span></span>}
+            </a>
           ))}
         </div>
         {message.content ? <p className="mt-2 whitespace-pre-wrap px-1 pb-0.5 text-sm font-semibold leading-6">{cleanSubjectPlaceholderText(message.content)}</p> : null}
@@ -325,7 +326,9 @@ export function Composer({
   activeQuickTask,
   attachments,
   smartHintsEnabled,
-  busy = false
+  busy = false,
+  recordDate,
+  onRecordDateChange
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -339,7 +342,11 @@ export function Composer({
   attachments: ComposerAttachment[];
   smartHintsEnabled?: boolean;
   busy?: boolean;
+  recordDate?: string;
+  onRecordDateChange?: (value: string) => void;
 }) {
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => { const element = inputRef.current; if (element) { element.style.height = "auto"; element.style.height = `${Math.min(element.scrollHeight, 144)}px`; } }, [value]);
   const insight = smartHintsEnabled === false || activeQuickTask ? null : detectInputInsight(value);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const materialSkill = quickTasks.find((task) => task.includes("分析") || task.includes("试卷") || task.includes("材料"));
@@ -360,6 +367,7 @@ export function Composer({
     <div className="shrink-0 bg-gradient-to-t from-[#f7f8f7] via-[#f7f8f7]/96 to-[#f7f8f7]/60 px-3 pb-3 pt-2 sm:px-6 sm:pb-4">
       <div className="mx-auto w-full max-w-[820px]">
         <div className="xuemai-scrollbar mb-2 flex gap-1.5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
+          {recordDate !== undefined ? <label className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-[#5c665f]">记录日期<input aria-label="记录日期" type="date" required max={new Date().toLocaleDateString("en-CA")} value={recordDate} onChange={event => onRecordDateChange?.(event.target.value)} className="min-w-0 rounded-full border border-[#e3e6e4] bg-white px-2 py-1" /></label> : null}
           {quickTasks.map((task) => (
             <button key={task} type="button" aria-pressed={activeQuickTask === task} onClick={() => onQuickTask(task)} className={cn("inline-flex h-11 shrink-0 items-center rounded-full border px-3.5 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#22c55e]/35 sm:h-8", activeQuickTask === task ? "border-[#22c55e] bg-[#dcfce7] text-[#15803d]" : "border-[#e3e6e4] bg-white/92 text-[#5c665f] hover:border-[#caead6] hover:bg-[#edf8f1]")}>
               {task}
@@ -387,6 +395,7 @@ export function Composer({
               <Plus size={22} />
             </IconButton>
             <textarea
+              ref={inputRef}
               value={value}
               rows={1}
               aria-label="消息输入"
@@ -397,8 +406,8 @@ export function Composer({
                   onSend();
                 }
               }}
-              placeholder={attachments.length > 0 ? "补充说明，或直接发送学习材料..." : activeQuickTask ? `输入内容后使用「${activeQuickTask}」处理...` : "输入要求，或上传试卷让 AI 处理..."}
-              className="max-h-24 min-h-9 flex-1 resize-none bg-transparent py-2 text-[13px] font-medium leading-5 text-[#191c1d] outline-none placeholder:text-[#a4aba6]"
+              placeholder={attachments.length > 0 ? "补充说明，或直接发送学习材料..." : activeQuickTask ? `输入内容后使用「${activeQuickTask}」处理...` : "记下这节课的内容和学生表现，或添加学习材料…"}
+              className="max-h-36 min-h-9 min-w-0 flex-1 resize-none bg-transparent py-2 text-[13px] font-medium leading-5 text-[#191c1d] outline-none placeholder:text-[#a4aba6]"
             />
             <button
               type="button"
@@ -425,7 +434,7 @@ export type ComposerAttachment = {
 function ComposerAttachmentPreview({ attachment, onRemove }: { attachment: ComposerAttachment; onRemove: () => void }) {
   return (
     <div title={attachment.fileName} className="group relative flex h-[68px] w-[104px] shrink-0 overflow-hidden rounded-[13px] border border-[#e3e6e4] bg-[#f3f5f4]">
-      {attachment.imageUrl ? <Image src={attachment.imageUrl} alt={attachment.fileName} fill className="object-cover" unoptimized /> : <FileImage className="m-auto text-[#8a948d]" size={24} />}
+      {attachment.imageUrl ? <Image src={attachment.imageUrl} alt={attachment.fileName} fill className="object-cover" unoptimized /> : <span className="m-auto min-w-0 px-2 text-center"><FileImage className="mx-auto text-[#8a948d]" size={22} /><span className="mt-1 block truncate text-[11px]">{attachment.fileName}</span></span>}
       <button type="button" onClick={onRemove} className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/55 text-xs font-bold text-white opacity-90 transition hover:bg-black/70" aria-label={`移除 ${attachment.fileName}`}>
         ×
       </button>

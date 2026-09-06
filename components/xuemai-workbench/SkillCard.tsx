@@ -1,3 +1,4 @@
+import { TeachingContent } from "./TeachingContent";
 import { useEffect, useState } from "react";
 import { Archive, CheckCircle2, Copy, PencilLine, RotateCcw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,7 +14,7 @@ type SkillCardProps = {
   task: TaskCard;
   conversation: Conversation;
   onAction: (task: TaskCard, action: SkillAction) => void;
-  onEdit?: (task: TaskCard, value: string) => void;
+  onEdit?: (task: TaskCard, value: string) => void | Promise<boolean>;
   onReview?: (task: TaskCard) => void;
 };
 
@@ -27,7 +28,7 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
   const archivedPreview = normalizeVisibleCardText(version.archivedText || preview);
   const titleText = getSkillCardTitle(conversation, task, meta.title);
   const subjectLabel = getVisibleTaskSubject(task, conversation);
-  const reviewLabel = task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis" ? "查看详细报告" : task.skillId === "monthly_report" || task.taskType === "monthly_report" ? "查看月报" : "查看详情";
+  const reviewLabel = task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis" ? "查看详细报告" : task.skillId === "monthly_report" || task.taskType === "monthly_report" ? "查看报告" : "查看详情";
   const timeLabel = formatChatTimestamp(task.createdAt);
   const fullTimeLabel = formatFullTimestamp(task.createdAt);
   const minimized = shouldMinimizeArchivedSkillCard(task.status);
@@ -35,7 +36,8 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
     .map((action) => normalizeChatCardAction(task, action))
     .filter((action) => shouldShowActionInChatCard(action.value))
     .filter((action) => shouldShowActionForStatus(task, action.value));
-  const primaryActions = actions.filter((action) => action.primary).sort((left, right) => getSkillCardActionPriority(task, left.value) - getSkillCardActionPriority(task, right.value));
+  const primaryActions = actions.sort((left, right) => getSkillCardActionPriority(task, left.value) - getSkillCardActionPriority(task, right.value));
+  const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState(fieldValue);
   const [showEditor, setShowEditor] = useState<boolean>(defaultSkillCardDisclosureState.showEditor);
 
@@ -46,13 +48,15 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
   const canEdit = !running && task.status !== "archived" && task.structuredResult?.locked !== true;
   const hasDraftChange = draft.trim() !== fieldValue.trim();
 
-  function handleEditorToggle() {
+  async function handleEditorToggle() {
     if (!showEditor) {
       setShowEditor(true);
       return;
     }
     if (canEdit && hasDraftChange) {
-      onEdit?.(task, draft);
+      setSaving(true);
+      try { if (await onEdit?.(task, draft) === false) return; }
+      finally { setSaving(false); }
     }
     setShowEditor(false);
   }
@@ -73,8 +77,6 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
           <h2 className="truncate text-sm font-bold tracking-tight text-[#191c1d]">{titleText}</h2>
           <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-[#6b746d]">
             {subjectLabel ? <span className="shrink-0 rounded-full bg-[#edf8f1] px-1.5 py-0.5 text-[10px] font-black text-[#14883b]">{subjectLabel}</span> : null}
-            <span className="truncate">来源：{task.inputSummary ?? `${conversation.name} · ${task.targetName}`}</span>
-            <span className="shrink-0">·</span>
             <time className="shrink-0" dateTime={task.createdAt} title={fullTimeLabel}>{timeLabel}</time>
           </div>
         </div>
@@ -99,14 +101,15 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
             <textarea
               value={draft}
               rows={3}
-              disabled={!canEdit}
+              aria-label="编辑结果正文"
+              disabled={!canEdit || saving}
               onChange={(event) => setDraft(event.target.value)}
               className="mt-2.5 min-h-[88px] w-full resize-none overflow-hidden rounded-[12px] border border-[#caead6] bg-[#fbfffd] px-3 py-2.5 text-[13px] font-semibold leading-5 text-[#26312a] outline-none transition focus:border-[#9bd9ad] disabled:bg-[#f3f4f5] disabled:text-[#6b746d]"
             />
           ) : (
-            <p className="mt-2.5 line-clamp-3 text-[13px] font-semibold leading-5 text-[#3d4a3d]">{preview}</p>
+            <TeachingContent text={preview} className="mt-2.5 max-h-48 overflow-y-auto text-[13px] font-semibold leading-5 text-[#3d4a3d]" />
           )}
-          {task.status === "failed" ? <p className="mt-1 text-[12px] font-semibold leading-5 text-[#b91c1c]">结构化错误：{task.detail ?? task.summary ?? "未知错误"}</p> : null}
+          {task.status === "failed" ? <p className="mt-1 text-[12px] font-semibold leading-5 text-[#b91c1c]">这次未能完成，原始材料已保留。请点击重新生成。</p> : null}
           {version.isEdited ? <p className="mt-1 text-[11px] font-semibold text-[#c2410c]">{version.editLabel}</p> : null}
 
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -114,7 +117,7 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
               <button
                 key={action.value}
                 type="button"
-                disabled={hasDraftChange}
+                disabled={hasDraftChange || saving}
                 onClick={() => onAction(task, action.value)}
                 className={cn(
                   "inline-flex h-8 items-center gap-1 rounded-full px-3 text-[12px] font-bold transition",
@@ -129,9 +132,9 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
                 {action.label}
               </button>
             ))}
-            <button type="button" onClick={handleEditorToggle} className={cn("inline-flex h-8 items-center gap-1 rounded-full border px-3 text-[12px] font-bold transition", showEditor && hasDraftChange ? "border-[#22c55e] bg-[#22c55e] text-white hover:bg-[#16a34a]" : "border-[#bccbb9] bg-white text-[#3d4a3d] hover:bg-[#f3f4f5]")}>
+            <button type="button" disabled={saving} onClick={canEdit ? handleEditorToggle : () => onReview?.(task)} className={cn("inline-flex h-8 items-center gap-1 rounded-full border px-3 text-[12px] font-bold transition", showEditor && hasDraftChange ? "border-[#22c55e] bg-[#22c55e] text-white hover:bg-[#16a34a]" : "border-[#bccbb9] bg-white text-[#3d4a3d] hover:bg-[#f3f4f5]")}>
               <PencilLine size={13} />
-              {showEditor ? (hasDraftChange ? "保存编辑" : "收起编辑") : "编辑当前版"}
+              {saving ? "正在保存…" : !canEdit ? "查看正文" : showEditor ? (hasDraftChange ? "保存编辑" : "收起编辑") : "编辑当前版"}
             </button>
           </div>
         </>
@@ -167,7 +170,7 @@ function ArchivedSkillCard({
               {timeLabel}
             </time>
           </h2>
-          <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[18px] text-[#4e5c52]">{preview}</p>
+          <TeachingContent text={preview} className="mt-1 max-h-14 overflow-hidden text-[12px] font-medium leading-[18px] text-[#4e5c52]" />
         </div>
         <span className="shrink-0 rounded-full bg-[#dcfce7] px-2 py-0.5 text-[11px] font-bold text-[#15803d]">{statusLabel}</span>
       </button>
@@ -188,6 +191,7 @@ function getVisibleTaskSubject(task: TaskCard, conversation: Conversation) {
 }
 
 function getSkillMeta(task: TaskCard) {
+  if (task.structuredResult?.recordKind === "daily") return { title: "学生日报", nextActions: [] };
   const skill = task.skillId ? getSkillById(task.skillId) : undefined;
 
   if (skill) {
@@ -236,7 +240,7 @@ function getStatusTone(status: TaskCard["status"]) {
 }
 
 function getPreview(task: TaskCard) {
-  return task.summary ?? task.feedbackText ?? task.detail ?? "任务已创建，等待 AI 生成结构化结果。";
+  return task.summary ?? task.feedbackText ?? task.detail ?? "正在整理，请稍候。";
 }
 
 function getActions(task: TaskCard): Array<{ label: string; value: SkillAction; primary?: boolean; soft?: boolean; icon?: React.ReactNode }> {

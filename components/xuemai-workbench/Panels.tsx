@@ -1,6 +1,6 @@
 import type React from "react";
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   AlertCircle,
   AtSign,
@@ -764,7 +764,8 @@ export function SettingsPanel({
   conversations,
   taskCards,
   services,
-  onRefresh
+  onRefresh,
+  onOpenTask
 }: {
   preferences: UserPreferences;
   onChange: (value: UserPreferences) => void;
@@ -776,6 +777,7 @@ export function SettingsPanel({
   taskCards: TaskCard[];
   services?: Snapshot["services"];
   onRefresh?: () => Promise<void>;
+  onOpenTask: (task: TaskCard) => void;
 }) {
   const [view, setView] = useState<"space" | "workspace" | "notifications">("space");
   const students = conversations.filter((conversation) => conversation.kind === "student");
@@ -793,7 +795,7 @@ export function SettingsPanel({
   }
 
   if (view === "notifications") {
-    return <NotificationCenterView pendingFeedback={pendingFeedback} monthlyCount={taskCards.filter(task => task.taskType === "monthly_report").length} riskCount={students.filter(student => student.attention).length} aiDone={taskCards.filter(task => task.status !== "running" && task.status !== "failed").length} onBack={() => setView("space")} />;
+    return <NotificationCenterView taskCards={taskCards} onOpenTask={onOpenTask} onBack={() => setView("space")} />;
   }
 
   return (
@@ -835,44 +837,32 @@ export function SettingsPanel({
           <header>
             <p className="text-[13px] font-bold text-[#22c55e]">我的空间</p>
             <h1 className="mt-1 text-[28px] font-bold tracking-tight text-[#191c1d]">工作室、AI 助教与通知设置</h1>
-            <p className="mt-1.5 text-[14px] font-medium text-[#6b7280]">只保留老师日常会用到的设置入口，复杂权限和机构后台先不展开。</p>
+            <p className="mt-1.5 text-[14px] font-medium text-[#6b7280]">在这里调整反馈语气、查看账号资料和处理提醒。</p>
           </header>
 
           <SettingsGroup title="工作室与账号">
-            <SettingsRow icon={<Building2 size={19} />} title="工作室资料" description="管理工作室名称、认证信息和展示资料" onClick={() => setView("workspace")} />
-            <SettingsRow icon={<ShieldCheck size={19} />} title="账号与安全" description="手机号、登录密码和账号安全设置" />
-            <SettingsRow icon={<GraduationCap size={19} />} title="老师授课信息" description={`${stageLabel} · ${subjectLabel} · ${modeLabel}`} />
+            <SettingsRow icon={<Building2 size={19} />} title="工作室资料" description="查看当前账号与教学资料" onClick={() => setView("workspace")} />
+            <SettingsRow icon={<ShieldCheck size={19} />} title="账号与安全" description={`当前登录：${teacherProfile.contact}；暂不支持在此修改密码`} />
+            <SettingsRow icon={<GraduationCap size={19} />} title="老师授课信息" description={`${stageLabel} · ${subjectLabel} · ${modeLabel}`} onClick={() => setView("workspace")} />
           </SettingsGroup>
 
           <SettingsGroup title="AI 助教">
-            <SettingsRow icon={<Sparkles size={19} />} title="AI 助教设置" description="设置默认反馈语气、分析深度和生成偏好" />
-            <SettingsToggleRow
-              icon={<BookOpenCheck size={19} />}
-              title="上传材料后自动分析"
-              description="打开后，上传试卷或作业图片会优先进入学习材料分析流程"
-              checked={preferences.autoAnalyzeUploadedPaper}
-              onChange={(checked) => onChange({ ...preferences, autoAnalyzeUploadedPaper: checked })}
-            />
-            <SettingsToggleRow
-              icon={<Database size={19} />}
-              title="分析结果自动加入资料库"
-              description="老师确认过默认行为后，可把分析草稿先放入资料库；正式学生档案仍需单独确认"
-              checked={preferences.autoArchiveLearningEvidence}
-              onChange={(checked) => onChange({ ...preferences, autoArchiveLearningEvidence: checked })}
-            />
+            <SettingsRow icon={<Sparkles size={19} />} title="反馈语气" description="使用本页的默认反馈语气选项，保存后用于新生成的家长反馈" />
+            <SettingsRow icon={<BookOpenCheck size={19} />} title="材料分析" description="上传后可补充说明，点击发送开始分析" />
+            <SettingsRow icon={<Database size={19} />} title="学生档案" description="检查每条学习记录后点击确认入档，草稿不会自动入档" />
           </SettingsGroup>
 
           <SettingsGroup title="通知与数据">
-            <SettingsRow icon={<Bell size={19} />} title="通知中心" description="查看待反馈、月报、学情风险和已生成内容提醒" onClick={() => setView("notifications")} />
-            <SettingsRow icon={<ClipboardList size={19} />} title="反馈模板管理" description="管理家长反馈结构、常用语气和月报模板" />
-            <SettingsRow icon={<Database size={19} />} title="学生档案管理" description="管理学生档案、学习记录和历史数据" />
+            <SettingsRow icon={<Bell size={19} />} title="通知中心" description="查看当前账号的待处理记录和已生成内容" onClick={() => setView("notifications")} />
+            <SettingsRow icon={<ClipboardList size={19} />} title="反馈模板管理" description="暂未开放自定义模板；可在反馈正文中直接编辑" />
+            <SettingsRow icon={<Database size={19} />} title="学生档案管理" description="点击左侧学生头像查看个人档案；仅收录已确认的学习记录" />
           </SettingsGroup>
 
           {services && onRefresh ? <SettingsGroup title="多维度教学助手"><BackendConnection connected={services.mdt} onRefresh={onRefresh} /></SettingsGroup> : null}
 
           <SettingsGroup title="帮助与支持">
-            <SettingsRow icon={<HelpCircle size={19} />} title="帮助中心" description="查看常见问题和使用说明" />
-            <SettingsRow icon={<MessageSquareText size={19} />} title="意见反馈" description="把你觉得别扭的流程直接告诉我们" />
+            <SettingsRow icon={<HelpCircle size={19} />} title="帮助中心" description="选择学生 → 记录课堂表现 → 检查结果 → 生成反馈或确认入档" />
+            <SettingsRow icon={<MessageSquareText size={19} />} title="意见反馈" description="暂未提供在线提交入口，可将问题截图交给项目负责人" />
             <div className="flex flex-wrap gap-2 px-1 pt-2">
               <button type="button" onClick={onClearData} className="inline-flex h-9 items-center gap-2 rounded-full bg-[#f3f4f5] px-4 text-sm font-bold text-[#3d4a3d] transition hover:bg-[#e8ece9]">
                 <RotateCcw size={15} />
@@ -891,7 +881,6 @@ export function SettingsPanel({
 }
 
 function WorkspaceProfileView({ teacherProfile, studentCount, classCount, onBack }: { teacherProfile: TeacherProfile; studentCount: number; classCount: number; onBack: () => void }) {
-  const [editing, setEditing] = useState(false);
   const organizationLabel = teacherProfile.organizationName?.trim() || (teacherProfile.role === "organization" ? "机构资料未完善" : "个人工作室");
   const roleLabel = teacherProfile.role === "organization" ? "机构老师" : "个体老师";
   const subjectLabel = teacherProfile.subjects?.length ? teacherProfile.subjects.join(" / ") : "未选择科目";
@@ -901,7 +890,7 @@ function WorkspaceProfileView({ teacherProfile, studentCount, classCount, onBack
   return (
     <div className="h-full overflow-y-auto bg-[#f6f7f6] px-6 py-6">
       <div className="mx-auto max-w-[1120px]">
-        <PanelHeader eyebrow="工作室资料" title={organizationLabel} subtitle="用于老师对外展示与 AI 服务规则识别，当前为 mock 资料。" onBack={onBack} right={<button type="button" onClick={() => setEditing((value) => !value)} className="h-9 rounded-full bg-[#22c55e] px-4 text-sm font-bold text-white">{editing ? "保存" : "编辑资料"}</button>} />
+        <PanelHeader eyebrow="工作室资料" title={organizationLabel} subtitle="当前账号的教学资料与学生数量。" onBack={onBack} />
         <div className="mt-5 grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
           <section className="rounded-[24px] bg-white p-5">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[28px] bg-[#f1f4f2] text-[#6b7280]">
@@ -910,8 +899,8 @@ function WorkspaceProfileView({ teacherProfile, studentCount, classCount, onBack
             <h2 className="mt-4 text-center text-[22px] font-bold text-[#191c1d]">{organizationLabel}</h2>
             <p className="mt-1 text-center text-[13px] font-semibold text-[#22c55e]">{roleLabel}</p>
             <div className="mt-5 grid grid-cols-3 rounded-[18px] bg-[#f8faf9] py-3 text-center">
-              <MiniStat label="学生" value={studentCount || 32} />
-              <MiniStat label="班级" value={classCount || 8} />
+              <MiniStat label="学生" value={studentCount} />
+              <MiniStat label="班级" value={classCount} />
               <MiniStat label="账号" value="体验版" />
             </div>
           </section>
@@ -927,15 +916,14 @@ function WorkspaceProfileView({ teacherProfile, studentCount, classCount, onBack
             />
             <InfoRows
               rows={[
-                ["教学风格", "专业、温和、重证据"],
+                ["登录账号", teacherProfile.contact],
                 ["AI 助手名称", "学脉助手"],
-                ["当前版本", "专业版 Pro"],
-                ["到期时间", "2026 年 12 月 31 日"]
+                ["当前版本", "学脉本地版"]
               ]}
             />
             <section className="rounded-[22px] bg-[#f2eadc] p-4 text-[13px] font-medium leading-6 text-[#5c5549]">
               <strong className="mb-1 block text-sm text-[#2b2f2d]">说明</strong>
-              工作室资料用于统一反馈口径和月报署名。后续接入真实账号后，这里会读取机构信息、老师身份、版本状态和安全设置。
+              这些资料仅供本账号查看，不会自动对外发布。反馈语气可在设置首页调整。
             </section>
           </section>
         </div>
@@ -944,71 +932,22 @@ function WorkspaceProfileView({ teacherProfile, studentCount, classCount, onBack
   );
 }
 
-function NotificationCenterView({
-  pendingFeedback,
-  monthlyCount,
-  riskCount,
-  aiDone,
-  onBack
-}: {
-  pendingFeedback: number;
-  monthlyCount: number;
-  riskCount: number;
-  aiDone: number;
-  onBack: () => void;
-}) {
+function NotificationCenterView({ taskCards, onBack, onOpenTask }: { taskCards: TaskCard[]; onBack: () => void; onOpenTask: (task: TaskCard) => void }) {
   const [filter, setFilter] = useState("全部");
-  const notifications = useMemo(
-    () => [
-      { id: "n1", type: "待反馈", tone: "yellow" as const, title: "王一路课后反馈待处理", description: "今天 19:00 下课后已自动生成反馈任务，请及时发送家长反馈。", meta: "初二数学 A 班 · 三角形全等", action: "立即处理" },
-      { id: "n2", type: "月报", tone: "green" as const, title: "6 月月报待生成", description: "王一路本月学习记录已完整，可以生成家长版月报。", meta: "王一路 · 2026 年 6 月", action: "生成月报" },
-      { id: "n3", type: "学情风险", tone: "red" as const, title: "李明轩出现学情风险", description: "近 3 次作业中，几何证明错误率上升，建议优先关注。", meta: "初二数学 A 班 · 几何证明", action: "查看详情" },
-      { id: "n4", type: "已生成", tone: "blue" as const, title: "张子涵作业分析已完成", description: "作业分析已生成，可查看错题成因并生成反馈。", meta: "张子涵 · 分式方程", action: "查看分析" }
-    ],
-    []
-  );
-  const filters = ["全部", "待反馈", "月报", "学情风险", "已生成"];
-  const visible = filter === "全部" ? notifications : notifications.filter((item) => item.type === filter);
-
-  return (
-    <div className="h-full overflow-y-auto bg-[#f6f7f6] px-6 py-6">
-      <div className="mx-auto max-w-[1080px]">
-        <PanelHeader eyebrow="通知中心" title="需要老师处理的服务提醒" subtitle="只展示会影响反馈、月报、学情风险和已生成内容处理的通知。" onBack={onBack} right={<button type="button" className="h-9 rounded-full bg-white px-4 text-sm font-bold text-[#5c665f]">全部已读</button>} />
-        <div className="mt-5 grid gap-3 md:grid-cols-4">
-          <DashboardMetric label="待反馈" value={pendingFeedback} tone="yellow" />
-          <DashboardMetric label="月报" value={monthlyCount} tone="green" />
-          <DashboardMetric label="学情风险" value={riskCount} tone="red" />
-          <DashboardMetric label="已生成" value={aiDone} tone="blue" />
-        </div>
-        <div className="mt-5 flex flex-wrap gap-2">
-          {filters.map((item) => (
-            <button key={item} type="button" onClick={() => setFilter(item)} className={cn("h-9 rounded-full px-4 text-sm font-bold transition", filter === item ? "bg-[#22c55e] text-white" : "bg-white text-[#5c665f] hover:bg-[#edf8f1]")}>{item}</button>
-          ))}
-        </div>
-        <div className="mt-4 grid gap-3">
-          {visible.map((item) => (
-            <section key={item.id} className="rounded-[22px] bg-white p-4">
-              <div className="flex gap-3">
-                <span className={cn("mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full", getToneSoftClass(item.tone))}>{getNotificationIcon(item.type)}</span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", getTonePillClass(item.tone))}>{item.type}</span>
-                    <span className="text-xs font-semibold text-[#8a948d]">10 分钟前</span>
-                  </div>
-                  <h2 className="mt-2 text-[16px] font-bold text-[#191c1d]">{item.title}</h2>
-                  <p className="mt-1 text-[13px] font-medium leading-5 text-[#66716a]">{item.description}</p>
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[#eef1ef] pt-3">
-                    <span className="text-xs font-semibold text-[#9aa3ad]">{item.meta}</span>
-                    <button type="button" className="h-8 rounded-full bg-[#22c55e] px-4 text-xs font-bold text-white">{item.action}</button>
-                  </div>
-                </div>
-              </div>
-            </section>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  const notifications = taskCards.map(task => ({ task, type: task.status === "failed" || !task.currentOutput?.display_content ? "待处理" : task.taskType === "feedback" && task.status !== "feedback_done" ? "待反馈" : task.taskType === "monthly_report" ? "学习报告" : "已生成" })).sort((a, b) => b.task.updatedAt.localeCompare(a.task.updatedAt));
+  const filters = ["全部", "待反馈", "学习报告", "待处理", "已生成"];
+  const visible = notifications.filter(item => filter === "全部" || item.type === filter);
+  return <div className="h-full overflow-y-auto bg-[#f6f7f6] px-6 py-6"><div className="mx-auto max-w-[1080px]">
+    <PanelHeader eyebrow="通知中心" title="需要老师处理的记录" subtitle="这里展示当前账号的实际记录，点击可查看正文并继续处理。" onBack={onBack} />
+    <div className="mt-5 grid gap-3 md:grid-cols-4">{filters.slice(1).map((label, index) => <DashboardMetric key={label} label={label} value={notifications.filter(item => item.type === label).length} tone={(["yellow", "green", "red", "blue"] as const)[index]} />)}</div>
+    <div className="mt-5 flex flex-wrap gap-2">{filters.map(item => <button key={item} type="button" aria-pressed={filter === item} onClick={() => setFilter(item)} className={cn("h-9 rounded-full px-4 text-sm font-bold transition", filter === item ? "bg-[#22c55e] text-white" : "bg-white text-[#5c665f] hover:bg-[#edf8f1]")}>{item}</button>)}</div>
+    <div className="mt-4 grid gap-3">{visible.length ? visible.map(({ task, type }) => <section key={task.id} className="rounded-[22px] bg-white p-4">
+      <div className="flex items-center gap-2"><span className="rounded-full bg-[#edf8f1] px-2 py-0.5 text-[11px] font-bold text-[#15803d]">{type}</span><time dateTime={task.updatedAt} className="text-xs text-[#8a948d]">{new Date(task.updatedAt).toLocaleString("zh-CN")}</time></div>
+      <h2 className="mt-2 text-[16px] font-bold text-[#191c1d]">{task.targetName} · {task.title}</h2>
+      <p className="mt-1 text-[13px] leading-5 text-[#66716a]">{task.status === "failed" ? task.detail : task.status === "running" ? "正在整理，完成后可查看。" : task.status === "archived" ? "已确认入档，可查看保留的正文。" : task.status === "feedback_done" ? "老师已标记发给家长。" : "内容已保存，可打开检查并继续处理。"}</p>
+      <div className="mt-3 flex justify-end border-t border-[#eef1ef] pt-3"><button type="button" onClick={() => onOpenTask(task)} className="h-8 rounded-full bg-[#22c55e] px-4 text-xs font-bold text-white">查看记录</button></div>
+    </section>) : <p className="rounded-[22px] bg-white p-6 text-sm text-[#6b746d]">{filter === "全部" ? "还没有记录。先选择一位学生，记下这节课的表现。" : `暂无${filter}记录。`}</p>}</div>
+  </div></div>;
 }
 
 function PanelHeader({ eyebrow, title, subtitle, onBack, right }: { eyebrow: string; title: string; subtitle: string; onBack: () => void; right?: React.ReactNode }) {
@@ -1038,15 +977,16 @@ function SettingsGroup({ title, children }: { title: string; children: React.Rea
 }
 
 function SettingsRow({ icon, title, description, onClick }: { icon: React.ReactNode; title: string; description: string; onClick?: () => void }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <button type="button" onClick={onClick} className="flex w-full items-center gap-3 border-b border-[#edf0ef] px-4 py-4 text-left transition last:border-b-0 hover:bg-[#f8faf9]">
+    <Tag onClick={onClick} className="flex w-full items-center gap-3 border-b border-[#edf0ef] px-4 py-4 text-left transition last:border-b-0 hover:bg-[#f8faf9]">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f2f4f3] text-[#6b746d]">{icon}</span>
       <span className="min-w-0 flex-1">
         <strong className="block truncate text-sm text-[#191c1d]">{title}</strong>
-        <span className="mt-0.5 block truncate text-[12px] font-medium text-[#66716a]">{description}</span>
+        <span className="mt-0.5 block text-[12px] font-medium text-[#66716a]">{description}</span>
       </span>
-      <ChevronRight size={17} className="text-[#a0a8a2]" />
-    </button>
+      {onClick ? <ChevronRight size={17} className="text-[#a0a8a2]" /> : null}
+    </Tag>
   );
 }
 
@@ -1077,18 +1017,6 @@ function BackendConnection({ connected, onRefresh }: { connected: boolean; onRef
   </div>;
 }
 
-function SettingsToggleRow({ icon, title, description, checked, onChange }: { icon: React.ReactNode; title: string; description: string; checked: boolean; onChange: (checked: boolean) => void }) {
-  return (
-    <label className="flex cursor-pointer items-center gap-3 border-b border-[#edf0ef] px-4 py-4 last:border-b-0 hover:bg-[#f8faf9]">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e9f8ef] text-[#16a34a]">{icon}</span>
-      <span className="min-w-0 flex-1">
-        <strong className="block truncate text-sm text-[#191c1d]">{title}</strong>
-        <span className="mt-0.5 block truncate text-[12px] font-medium text-[#66716a]">{description}</span>
-      </span>
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-5 w-5 accent-[#22c55e]" />
-    </label>
-  );
-}
 
 function MiniStat({ label, value }: { label: string; value: number | string }) {
   return (
@@ -1112,12 +1040,6 @@ function InfoRows({ rows }: { rows: Array<[string, string]> }) {
   );
 }
 
-function getNotificationIcon(type: string) {
-  if (type === "待反馈") return <Bell size={18} />;
-  if (type === "月报") return <FileText size={18} />;
-  if (type === "学情风险") return <AlertCircle size={18} />;
-  return <Sparkles size={18} />;
-}
 
 function formatTeacherName(name: string) {
   if (!name.trim()) return "Eric 老师";
@@ -1135,16 +1057,6 @@ function getTonePillClass(tone: PanelTone) {
   return tones[tone];
 }
 
-function getToneSoftClass(tone: PanelTone) {
-  const tones = {
-    green: "bg-[#dcfce7] text-[#15803d]",
-    yellow: "bg-[#fff7df] text-[#b7791f]",
-    blue: "bg-[#e0f2fe] text-[#0369a1]",
-    red: "bg-[#fee2e2] text-[#dc2626]",
-    gray: "bg-[#f2f4f3] text-[#5c665f]"
-  };
-  return tones[tone];
-}
 
 function getToneDotClass(tone: PanelTone) {
   const tones = {

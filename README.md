@@ -33,7 +33,7 @@ npm start
 - 原始材料下载、AI 原稿与老师修订版本对照。
 - 家长反馈生成、修订、复制与手工标记已发。应用不会给任何微信联系人自动发消息。
 - 学生档案确认与不可变正文快照；修改已发送或已入档正文需要另建记录。
-- 学生月报引用指定月份已入档的课堂 / 分析记录；在输入中写“2026年9月”可指定月份，未指定时使用当前月。
+- 学生日报／月报：点击“学习报告”（班级内为“学生报告”），先选择学生与日期或月份，再引用该范围内已入档的课堂 / 分析记录。无可用记录时可直接前往学生会话补充。
 - 工作台真实统计、待反馈清单、已入档清单与最近服务记录。
 - 反馈语气偏好、原教学后端班级导入、记录 JSON 导出和本机备份。
 - 原版侧边追问使用真实 AI；追问对话仅保留在当前页面，不自动写入学生档案。
@@ -97,7 +97,7 @@ $env:MDT_TEST_PASSWORD = '你的原教学后端教师密码'
 npm run test:mdt
 ```
 
-验收结果位于 `output/http-smoke.json`、`output/material-smoke.json`、`output/mdt-smoke.json` 和 `output/qa/`。范围与开发依据见 `docs/implementation/开发计划.md`；最终验收事实见 `docs/implementation/验收报告.md`。
+验收结果位于 `output/http-smoke.json`、`output/material-smoke.json`、`output/mdt-smoke.json` 和 `output/qa/`。范围与开发依据见 `docs/implementation/开发计划.md`；最终验收事实见 `docs/implementation/验收报告.md`；2026-09-05 的产品细节复测见 `docs/implementation/2026-09-05-产品细节检查.md`。
 
 ## 当前交付边界
 

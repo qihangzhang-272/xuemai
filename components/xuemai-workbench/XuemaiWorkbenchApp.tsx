@@ -7,6 +7,7 @@ import { AutomationAssistantEmptyState, ChatHeader, Composer, ConfirmTaskCard, E
 import type { AutomationTemplate } from "./ChatParts";
 import type { ComposerAttachment } from "./ChatParts";
 import { ContextPanel } from "./ContextPanel";
+import { ReportDialog } from "./ReportDialog";
 import { CreateDialog } from "./CreateDialog";
 import { ProfileDrawer, SearchDrawer, SideDrawer, TaskDetailDrawer, drawerTitle } from "./Drawers";
 import type { SearchDrawerResultTarget } from "./Drawers";
@@ -30,7 +31,7 @@ import { getSkillByTriggerLabel, getSkillsForSubject } from "@/src/skills/regist
 import type { SkillId, SkillSubjectType } from "@/src/skills/types";
 import { cn } from "@/lib/utils";
 
-import { allSubjectsLabel, cleanSubjectPlaceholderText, getSelectedSubjectTrack, getSkillSubjectLabel, getSubjectSummaryLabel, getSubjectTracks, normalizeSubjectText } from "./subject-utils";
+import { allSubjectsLabel, cleanSubjectPlaceholderText, getSelectedSubjectTrack, getSubjectSummaryLabel, getSubjectTracks, normalizeSubjectText } from "./subject-utils";
 
 const sideWorkspaceMinWidth = 360;
 const sideWorkspaceMaxWidth = 1080;
@@ -67,6 +68,9 @@ export function XuemaiWorkbenchApp() {
   const [teacher, setTeacher] = useState<TeacherProfile | null>(initialState.teacher);
   const [hasLoadedStorage, setHasLoadedStorage] = useState(false);
   const [activeId, setActiveId] = useState(initialState.currentConversationId ?? "student-wang");
+  const activeIdRef = useRef(activeId);
+  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+  const [recordDate, setRecordDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [query, setQuery] = useState("");
   const [input, setInput] = useState("");
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
@@ -96,6 +100,9 @@ export function XuemaiWorkbenchApp() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const snapshotRef = useRef<Snapshot | null>(null);
   const pendingRef = useRef(new Set<string>());
+  const [reportOpen, setReportOpen] = useState(false);
+  const sendingRef = useRef(false);
+  const draftRef = useRef<Record<string, { input: string; attachments: ComposerAttachment[]; skill: SkillId | null; date?: string }>>({});
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const refreshBackend = useCallback(async () => {
@@ -137,7 +144,7 @@ export function XuemaiWorkbenchApp() {
     finally { pendingRef.current.delete(id); }
   }
   function latestRecord(conversationId: string) {
-    return [...(snapshotRef.current?.records || [])].reverse().find(r => r.contactId === conversationId && r.content && r.evidence === "observed" && r.kind !== "prep");
+    return [...(snapshotRef.current?.records || [])].reverse().find(r => r.contactId === conversationId && r.content && r.evidence === "observed" && ["record", "analysis"].includes(r.kind));
   }
   useEffect(() => {
     if (!isMobileNavigationOpen) return;
@@ -166,11 +173,11 @@ export function XuemaiWorkbenchApp() {
   const reviewTask = reviewTaskId ? taskById.get(reviewTaskId) : undefined;
   const currentTaskCards = useMemo(() => taskCards.filter((task) => task.conversationId === activeConversation.id), [activeConversation.id, taskCards]);
   const currentTimelineRecords = useMemo(() => timelineRecords.filter((record) => record.conversationId === activeConversation.id), [activeConversation.id, timelineRecords]);
-  const currentClassMembers = conversations.filter((item) => item.kind === "student" && item.className === activeConversation.name);
+  const currentClassMembers = conversations.filter((item) => item.kind === "student" && snapshotRef.current?.contacts.find(c => c.id === item.id)?.classIds.includes(activeConversation.id));
   const activeSubjectOptions = useMemo(() => getSubjectTracks(activeConversation), [activeConversation]);
   const activeSubjectTrack = getSelectedSubjectTrack(activeConversation, subjectContextByConversationId[activeConversation.id]);
   const subjectType = getSubjectType(activeConversation);
-  const quickSkills = useMemo(() => getSkillsForSubject(subjectType).slice(0, 6), [subjectType]);
+  const quickSkills = useMemo(() => getSkillsForSubject(subjectType).filter(skill => ["update_learning_record", "analyze_learning_evidence", "generate_feedback", "next_lesson_plan", "monthly_report", "class_lesson_record", "today_todos"].includes(skill.id)), [subjectType]);
   const quickTasks = useMemo(() => quickSkills.map((skill) => getSkillDisplayLabel(skill, activeConversation)), [activeConversation, quickSkills]);
   const activeSkill = activeSkillId ? quickSkills.find((skill) => skill.id === activeSkillId) : undefined;
   const activeQuickTaskLabel = activeSkill ? getSkillDisplayLabel(activeSkill, activeConversation) : undefined;
@@ -222,9 +229,11 @@ export function XuemaiWorkbenchApp() {
   }, [activeId, currentMessages.length, taskCards]);
 
   useEffect(() => {
-    setActiveSkillId(null);
-    setInput("");
-    setComposerAttachments([]);
+    const draft = draftRef.current[activeId];
+    setActiveSkillId(draft?.skill || null);
+    setInput(draft?.input || "");
+    setComposerAttachments(draft?.attachments || []);
+    setRecordDate(draft?.date || new Date().toLocaleDateString("en-CA"));
     setPendingUploadConversationId(null);
   }, [activeId]);
 
@@ -382,6 +391,9 @@ export function XuemaiWorkbenchApp() {
   }
 
   function selectConversation(conversationId: string) {
+    draftRef.current[activeId] = { input, attachments: composerAttachments, skill: activeSkillId, date: recordDate };
+    const draft = draftRef.current[conversationId];
+    setInput(draft?.input || ""); setComposerAttachments(draft?.attachments || []); setActiveSkillId(draft?.skill || null);
     setActiveId(conversationId);
     setIsMobileNavigationOpen(false);
     setMode("chat");
@@ -562,11 +574,20 @@ async function sendSideChatMessage() {
     if (conversation.kind === "assistant") {
       showToast("请先选择学生或班级，再生成教学记录。"); return;
     }
-    if (sending) return;
-    setSending(true);
+    if (skillId === "monthly_report") { setReportOpen(true); return; }
+    if (sendingRef.current) return;
+    sendingRef.current = true; setSending(true);
     try {
-      const source = latestRecord(conversation.id);
+      let source = latestRecord(conversation.id);
       if (skillId === "generate_feedback" || skillId === "parent_communication") {
+        if (inputSummary.trim() || attachmentIds.length) {
+          const created = await performBackend(() => backend<LearningRecord>("records", { contactId: conversation.id, kind: attachmentIds.length ? "analysis" : "record", date: recordDate, input: inputSummary, attachmentIds }));
+          if (!created) return;
+          delete draftRef.current[conversation.id];
+          if (activeIdRef.current === conversation.id) { setInput(""); setComposerAttachments([]); setActiveSkillId(null); }
+          source = await runRecordAction({ id: created.id } as TaskCard, "generate");
+          if (!source || source.evidence !== "observed") { showToast("记录已保存，请先补充可确认的学生表现，再生成家长反馈。"); return; }
+        }
         if (!source) { showToast("请先提交课堂表现或学习材料，完成记录后再生成反馈。"); return; }
         await runRecordAction({ id: source.id } as TaskCard, "feedback"); return;
       }
@@ -576,9 +597,9 @@ async function sendSideChatMessage() {
         setInput("请逐位记录到课学生的表现，再进入对应学生会话整理入档。");
         showToast("请在学生会话中补充个体观察，班级内容不能代替个人表现。"); return;
       }
-      const kind = skillId === "monthly_report" ? "monthly" : skillId === "analyze_learning_evidence" ? "analysis"
+      const kind = skillId === "analyze_learning_evidence" ? "analysis"
         : ["next_lesson_plan", "lesson_prep", "tiered_practice"].includes(skillId) ? "prep" : "record";
-      const now = new Date().toLocaleDateString("en-CA");
+      const now = recordDate;
       const month = inputSummary.match(/(20\d{2})[-年](0?[1-9]|1[0-2])(?:月|\b)/);
       const body = { contactId: conversation.id, kind, date: now,
         month: month ? `${month[1]}-${month[2].padStart(2, "0")}` : now.slice(0, 7),
@@ -586,9 +607,10 @@ async function sendSideChatMessage() {
         attachmentIds, sourceIds: kind === "prep" && source ? [source.id] : [] };
       const created = await performBackend(() => backend<LearningRecord>("records", body));
       if (!created) return;
-      setInput(""); setComposerAttachments([]); setActiveSkillId(null);
+      if (inputSummary === input && activeIdRef.current === conversation.id) { setInput(""); setComposerAttachments([]); setActiveSkillId(null); }
+      delete draftRef.current[conversation.id];
       await runRecordAction({ id: created.id } as TaskCard, "generate");
-    } finally { setSending(false); }
+    } finally { sendingRef.current = false; setSending(false); }
   }
 
 
@@ -609,13 +631,16 @@ async function sendSideChatMessage() {
     if (!file || uploading) return;
     if (file.size > 20 * 1024 * 1024) { showToast("单个文件不能超过 20 MB"); return; }
     if (composerAttachments.length >= 5) { showToast("一次最多添加 5 份材料"); return; }
+    const uploadConversationId = activeConversation.id;
     setUploading(true);
     try {
       const form = new FormData(); form.set("file", file);
       const response = await fetch("/api/xuemai/attachments", { method: "POST", body: form });
       const data: Attachment & { error?: string } = await response.json();
       if (!response.ok) throw new Error(data.error || "上传失败");
-      setComposerAttachments(items => [...items, { id: data.id, fileName: data.name, imageUrl: data.type.startsWith("image/") ? `/api/xuemai/attachments/${data.id}` : undefined }]);
+      const attachment = { id: data.id, fileName: data.name, imageUrl: data.type.startsWith("image/") ? `/api/xuemai/attachments/${data.id}` : undefined };
+      if (activeIdRef.current === uploadConversationId) setComposerAttachments(items => [...items, attachment]);
+      else { const draft = draftRef.current[uploadConversationId] || { input: "", skill: null, attachments: [] }; draftRef.current[uploadConversationId] = { ...draft, attachments: [...draft.attachments, attachment] }; }
       showToast("材料已上传，点击发送开始整理。");
     } catch (error) { showToast(error instanceof Error ? error.message : "上传失败"); }
     finally { setUploading(false); }
@@ -652,6 +677,7 @@ async function sendSideChatMessage() {
   async function handleSkillEdit(task: TaskCard, value: string) {
     const result = await runRecordAction(task, "edit", isFeedback(task) ? { feedback: value } : { content: value });
     if (result) showToast("修改已保存。");
+    return !!result;
   }
 
   function handleSkillReset(task: TaskCard) {
@@ -660,7 +686,7 @@ async function sendSideChatMessage() {
   }
 
 function openSkillReview(task: TaskCard) {
-    setActiveId(task.conversationId); setReviewTaskId(task.id); setSelectedTaskId(task.id);
+    selectConversation(task.conversationId); setReviewTaskId(task.id); setSelectedTaskId(task.id);
     setActiveDrawer(null); setMode("side-chat"); setIsContextOpen(true);
   }
 
@@ -698,21 +724,23 @@ function openSkillReview(task: TaskCard) {
       return;
     }
 
-    const skill = getSkillByTriggerLabel(task, subjectType) ?? getSkillsForSubject(subjectType).find((item) => item.label === task);
+    const skill = quickSkills.find(item => getSkillDisplayLabel(item, activeConversation) === task) ?? getSkillByTriggerLabel(task, subjectType) ?? getSkillsForSubject(subjectType).find((item) => item.label === task);
     if (!skill) {
       showToast("这个教学任务还没有注册到当前会话");
       return;
     }
 
+    if (skill.id === "monthly_report") { setReportOpen(true); return; }
+    if (skill.id === "generate_feedback" && !input.trim() && !composerAttachments.length) {
+      const source = latestRecord(activeConversation.id);
+      if (source) { const card = taskById.get(source.id); if (card) openSkillReview(card); showToast("请先检查这条课堂记录，再点击生成微信反馈。"); return; }
+    }
     const selecting = activeSkillId !== skill.id;
-    const promptTemplate = buildConversationSkillPromptTemplate(skill.id, getSkillDisplayLabel(skill, activeConversation), activeConversation);
     setActiveSkillId(selecting ? skill.id : null);
     if (selecting) {
-      setInput(promptTemplate);
-      showToast(`已填入「${getSkillDisplayLabel(skill, activeConversation)}」模板，可修改后发送`);
+      showToast(`已选择「${getSkillDisplayLabel(skill, activeConversation)}」，请填写实际内容或添加材料。`);
       return;
     }
-    if (input.trim() === promptTemplate.trim()) setInput("");
     showToast(`已取消「${getSkillDisplayLabel(skill, activeConversation)}」`);
   }
 
@@ -761,7 +789,7 @@ function openSkillReview(task: TaskCard) {
 
   async function handleLogout() {
     await performBackend(() => backend("auth", {}, "DELETE"));
-    setSideChats([]); setInput(""); setComposerAttachments([]); setMode("chat");
+    draftRef.current = {}; setSideChats([]); setInput(""); setComposerAttachments([]); setMode("chat");
   }
 
   async function handleLogin(profile: TeacherProfile, credentials: { mode: string; password: string }) {
@@ -831,6 +859,8 @@ function openSkillReview(task: TaskCard) {
         </div>
         <Composer
           value={input}
+          recordDate={isAutomationAssistant ? undefined : recordDate}
+          onRecordDateChange={setRecordDate}
           onChange={setInput}
           onSend={handleSendMessage}
           onUpload={() => fileInputRef.current?.click()}
@@ -969,6 +999,7 @@ function openSkillReview(task: TaskCard) {
             />
           ) : mode === "settings" ? (
             <SettingsPanel
+              onOpenTask={openSkillReview}
               preferences={preferences}
               onChange={handlePreferences}
               onClearData={handleClearLocalData}
@@ -1032,6 +1063,13 @@ function openSkillReview(task: TaskCard) {
         ) : null}
       </div>
 
+      {reportOpen && snapshotRef.current ? <ReportDialog students={snapshotRef.current.contacts.filter(c => c.kind === "student" && (activeConversation.kind !== "class" || c.classIds.includes(activeConversation.id)))} records={snapshotRef.current.records} initialStudentId={activeConversation.kind === "student" ? activeConversation.id : undefined} onClose={() => setReportOpen(false)} onOpenStudent={id => { setReportOpen(false); selectConversation(id); }} onGenerate={async (contactId, kind, period) => {
+        const created = await performBackend(() => backend<LearningRecord>("records", { contactId, kind, date: kind === "daily" ? period : new Date().toLocaleDateString("en-CA"), month: kind === "monthly" ? period : "", input: `生成 ${period} 学生${kind === "daily" ? "日报" : "月报"}`, attachmentIds: [] }));
+        if (!created) return false;
+        setReportOpen(false); selectConversation(contactId);
+        void runRecordAction({ id: created.id } as TaskCard, "generate");
+        return true;
+      }} /> : null}
       {creationMode ? (
         <CreateDialog
           mode={creationMode}
@@ -1070,7 +1108,7 @@ function openSkillReview(task: TaskCard) {
           onEditProfile={handleEditProfileRequest}
         />
       ) : null}
-      {toast ? <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-[#191c1d] px-4 py-2 text-sm font-medium text-white shadow-2xl">{toast}</div> : null}
+      {toast ? <div role="status" aria-live="polite" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-[#191c1d] px-4 py-2 text-sm font-medium text-white shadow-2xl">{toast}</div> : null}
     </main>
   );
 }
@@ -1146,47 +1184,6 @@ function buildAutomationPromptTemplate(label: string) {
   return `帮我围绕「${label}」生成一个可执行的自动化任务计划，先列依据，再列处理顺序，最后给出需要老师确认的事项。`;
 }
 
-function buildConversationSkillPromptTemplate(skillId: SkillId, label: string, conversation: Conversation) {
-  const subjectLabel = getSkillSubjectLabel(conversation);
-  const studentName = conversation.kind === "student" ? conversation.name : "这个学生";
-  const className = conversation.kind === "class" ? conversation.name : "这个班";
-
-  if (conversation.kind === "class") {
-    switch (skillId) {
-      case "monthly_report":
-        return `请为「${className}」整理一份本月班级复盘月报，重点看班课推进、共性薄弱点、需要关注学生、反馈完成情况和下月分层安排。`;
-      case "class_lesson_record":
-        return `记录「${className}」本节班课：今天讲了……学生整体表现……共性问题……需要单独跟进的学生……后续训练重点……`;
-      case "batch_feedback":
-        return `请根据「${className}」本次班课记录，生成分组课后反馈草稿。先按学生状态分组，再分别给出可发给家长的简短反馈。`;
-      case "common_weakness":
-        return `请从「${className}」最近班课记录和学生表现中整理共性薄弱点，区分知识点、解题方法、审题习惯和表达规范。`;
-      case "tiered_practice":
-        return `请根据「${className}」当前共性薄弱点，设计基础组、提升组、挑战组三层练习方向，并说明每组适合哪些学生。`;
-      case "split_to_student_profiles":
-        return `请把「${className}」这条班课记录拆成每个学生可入档的学习记录草稿，只保留有依据的事实，待我确认后再写入学生档案。`;
-      default:
-        return `请围绕「${className}」执行「${label}」，先说明依据，再给出老师可以直接处理的结果。`;
-    }
-  }
-
-  switch (skillId) {
-    case "update_learning_record":
-      return `帮我把「${studentName}」这段课堂表现整理为学习记录草稿，保留事实依据，不夸大、不贴标签：`;
-    case "analyze_learning_evidence":
-      return `我将上传或描述「${studentName}」的一份${subjectLabel}学习材料。请先判断材料类型、学生作答痕迹和可分析范围，再生成学情分析草稿。`;
-    case "generate_feedback":
-      return `根据「${studentName}」最近的学习记录，生成一段可发给家长的微信反馈。语气温和、具体，不制造焦虑，不承诺提分。`;
-    case "next_lesson_plan":
-      return `根据「${studentName}」最近的${subjectLabel}表现，整理下次课建议，优先给出训练重点、课堂安排和需要观察的问题。`;
-    case "monthly_report":
-      return `整理「${studentName}」本月${subjectLabel}月报草稿，只使用已确认记录，突出本月表现、主要进步、仍需巩固和下月重点。`;
-    case "parent_communication":
-      return `帮我整理一段关于「${studentName}」的家长沟通建议。先说明事实依据，再给出温和、可直接发送的表达。`;
-    default:
-      return `请围绕「${studentName}」执行「${label}」，先说明依据，再输出老师可确认的草稿。`;
-  }
-}
 
 function buildAutomationAssistantReply(taskCards: TaskCard[], conversations: Conversation[]) {
   const feedback = taskCards.filter(task => task.taskType === "feedback" && ["completed", "copied"].includes(task.status)).length;
@@ -1197,7 +1194,7 @@ function buildAutomationAssistantReply(taskCards: TaskCard[], conversations: Con
 }
 
 function getSkillDisplayLabel(skill: { id: SkillId; label: string }, conversation: Conversation) {
-  if (skill.id === "monthly_report" && conversation.kind === "class") return "班级月报";
+  if (skill.id === "monthly_report") return conversation.kind === "class" ? "学生报告" : "学习报告";
   return skill.label;
 }
 

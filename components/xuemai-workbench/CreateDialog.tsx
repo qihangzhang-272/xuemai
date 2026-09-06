@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CalendarClock, ChevronRight, Clock3, Info, MessageSquareText, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IconButton } from "./shared";
@@ -7,7 +7,7 @@ import type { CreationMode, CreationPayload } from "./types";
 const weekdayOptions = ["一", "二", "三", "四", "五", "六", "日"];
 const gradeOptions = ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级", "初一", "初二", "初三", "高一", "高二", "高三"];
 const subjectOptions = ["语文", "数学", "英语", "物理", "化学", "生物", "政治", "历史", "地理", "科学", "信息技术", "全科"];
-const studentDefaultFeedbackTrigger = "下课后自动生成";
+const studentDefaultFeedbackTrigger = "课后手动整理";
 const studentDefaultFeedbackDeadline = "当天 22:00 前";
 const classDefaultFeedbackTrigger = "下课后立即";
 const classDefaultFeedbackDeadline = "下次课前 24H";
@@ -24,13 +24,16 @@ export function CreateDialog({
 }: {
   mode: Exclude<CreationMode, null>;
   onClose: () => void;
-  onCreate: (payload: CreationPayload) => void;
+  onCreate: (payload: CreationPayload) => void | Promise<void>;
   classOptions?: string[];
   initialPayload?: Partial<CreationPayload>;
   eyebrow?: string;
   title?: string;
   primaryLabel?: string;
 }) {
+  const [saving, setSaving] = useState(false);
+  const saveRef = useRef(false);
+  const [error, setError] = useState("");
   const isStudent = mode === "student";
   const [classDrawerOpen, setClassDrawerOpen] = useState(false);
   const [payload, setPayload] = useState<CreationPayload>(() => ({
@@ -81,8 +84,12 @@ export function CreateDialog({
     });
   }
 
-  function createWithRules(enabled: boolean) {
-    onCreate(normalizeCreationPayload(payload, mode, enabled));
+  async function createWithRules(enabled: boolean) {
+    if (saveRef.current) return;
+    if (!payload.name.trim()) { setError(mode === "student" ? "请填写学生姓名。" : "请填写班级名称。"); return; }
+    saveRef.current = true; setSaving(true); setError("");
+    try { await onCreate(normalizeCreationPayload(payload, mode, enabled)); }
+    finally { saveRef.current = false; setSaving(false); }
   }
 
   if (!isStudent) {
@@ -94,7 +101,7 @@ export function CreateDialog({
               <p className="text-[12px] font-bold text-[#22c55e]">{eyebrow ?? "新建班级"}</p>
               <h2 className="text-[18px] font-black tracking-tight text-[#191c1d]">{title ?? "创建班级群聊与课后服务规则"}</h2>
             </div>
-            <IconButton label="关闭" onClick={onClose}>
+            <IconButton label="关闭" onClick={() => { if (!saving) onClose(); }}>
               <X size={20} />
             </IconButton>
           </div>
@@ -138,29 +145,29 @@ export function CreateDialog({
                 <ToggleRow label="是否重复" checked={Boolean(payload.repeatSchedule)} onChange={(checked) => updateField("repeatSchedule", checked)} />
               </FormSection>
 
-              <FormSection title="课后反馈规则" description="班级反馈是给老师看的任务队列，不会自动发给家长。">
-                <ToggleRow label="课后自动生成反馈任务" checked={Boolean(payload.needsFeedback)} onChange={(checked) => updateField("needsFeedback", checked)} />
-                <ChoiceRow label="反馈触发时间" value={payload.feedbackTrigger ?? ""} options={["下课后立即", "下课后 1 小时", "第二天早上"]} onChange={(value) => updateField("feedbackTrigger", value)} disabled={!payload.needsFeedback} />
+              <FormSection title="课后反馈规则" description="这里只保存反馈安排，需由老师在会话中手动生成反馈。">
+                <ToggleRow label="需要课后反馈" checked={Boolean(payload.needsFeedback)} onChange={(checked) => updateField("needsFeedback", checked)} />
+                <ChoiceRow label="计划反馈时间" value={payload.feedbackTrigger ?? ""} options={["下课后立即", "下课后 1 小时", "第二天早上"]} onChange={(value) => updateField("feedbackTrigger", value)} disabled={!payload.needsFeedback} />
                 <ChoiceRow label="反馈截止时间" value={payload.feedbackDeadline ?? ""} options={["下次课前 24H", "下次课前 12H", "不设截止"]} onChange={(value) => updateField("feedbackDeadline", value)} disabled={!payload.needsFeedback} />
-                <ReadOnlyRow label="提醒方式" value={payload.needsFeedback ? "弹窗通知" : "关闭"} disabled={!payload.needsFeedback} />
+                <ReadOnlyRow label="提醒方式" value="暂不提供定时提醒" disabled={!payload.needsFeedback} />
               </FormSection>
             </main>
 
             <aside className="border-t border-[#edf0ee] bg-white p-4 lg:border-l lg:border-t-0">
               <div className="space-y-3 lg:sticky lg:top-4">
-                <ClassPreviewCard payload={previewPayload} />
+                <ClassPreviewCard payload={previewPayload} />{error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
                 <section className="rounded-[18px] bg-[#f1eadf] p-3">
                   <div className="flex items-center gap-2 text-[#3d4a3d]">
                     <Info size={16} />
-                    <h3 className="text-[13px] font-black text-[#191c1d]">状态自动切换规则</h3>
+                    <h3 className="text-[13px] font-black text-[#191c1d]">安排与反馈说明</h3>
                   </div>
                   <p className="mt-2 text-[12px] font-medium leading-5 text-[#5c665f]">
                     授课时间和反馈规则会保存到班级资料。当前尚未接入定时任务，反馈与入档由老师在会话中操作。
                   </p>
                 </section>
                 <div className="space-y-2 pt-1">
-                  <button type="button" onClick={() => createWithRules(Boolean(payload.needsFeedback))} className="h-10 w-full rounded-[15px] bg-[#22c55e] text-[13px] font-black text-white transition hover:bg-[#16a34a]">
-                    {primaryLabel ?? "创建班级"}
+                  <button type="button" disabled={saving} onClick={() => createWithRules(Boolean(payload.needsFeedback))} className="h-10 w-full rounded-[15px] bg-[#22c55e] text-[13px] font-black text-white transition hover:bg-[#16a34a]">
+                    {saving ? "正在保存…" : primaryLabel ?? "创建班级"}
                   </button>
                 </div>
               </div>
@@ -179,7 +186,7 @@ export function CreateDialog({
             <p className="text-[12px] font-bold text-[#22c55e]">{eyebrow ?? "学生建档"}</p>
             <h2 className="text-[18px] font-black tracking-tight text-[#191c1d]">{title ?? "创建学生会话与服务规则"}</h2>
           </div>
-          <IconButton label="关闭" onClick={onClose}>
+          <IconButton label="关闭" onClick={() => { if (!saving) onClose(); }}>
             <X size={20} />
           </IconButton>
         </div>
@@ -227,27 +234,27 @@ export function CreateDialog({
             <FormSection title="课时与反馈规则" description="反馈规则可以现在设置，也可以只建档，稍后由老师补全。">
               <TextRow label="总课时数" value={payload.totalLessons ?? ""} suffix="课时" onChange={(value) => updateField("totalLessons", value)} />
               <ToggleRow label="每节课后都需要反馈" checked={Boolean(payload.needsFeedback)} onChange={(checked) => updateField("needsFeedback", checked)} />
-              <ChoiceRow label="反馈触发时间" value={payload.feedbackTrigger ?? ""} options={["下课后自动生成", "老师手动触发", "当天晚上生成"]} onChange={(value) => updateField("feedbackTrigger", value)} disabled={!payload.needsFeedback} />
+              <ChoiceRow label="计划反馈时间" value={payload.feedbackTrigger ?? ""} options={["课后手动整理", "老师手动触发", "当天晚上生成"]} onChange={(value) => updateField("feedbackTrigger", value)} disabled={!payload.needsFeedback} />
               <ChoiceRow label="反馈截止时间" value={payload.feedbackDeadline ?? ""} options={["当天 22:00 前", "次日 12:00 前", "不设截止"]} onChange={(value) => updateField("feedbackDeadline", value)} disabled={!payload.needsFeedback} />
-              <ReadOnlyRow label="提醒方式" value={payload.needsFeedback ? "弹窗通知" : "关闭"} disabled={!payload.needsFeedback} />
+              <ReadOnlyRow label="提醒方式" value="暂不提供定时提醒" disabled={!payload.needsFeedback} />
             </FormSection>
           </main>
 
           <aside className="border-t border-[#edf0ee] bg-white p-4 lg:border-l lg:border-t-0">
             <div className="space-y-3 lg:sticky lg:top-4">
-              <PreviewCard payload={previewPayload} />
+              <PreviewCard payload={previewPayload} />{error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
               <section className="rounded-[18px] bg-[#f1eadf] p-3">
                 <div className="flex items-center gap-2 text-[#3d4a3d]">
                   <Info size={16} />
-                  <h3 className="text-[13px] font-black text-[#191c1d]">状态自动切换规则</h3>
+                  <h3 className="text-[13px] font-black text-[#191c1d]">安排与反馈说明</h3>
                 </div>
                 <p className="mt-2 text-[12px] font-medium leading-5 text-[#5c665f]">
                   授课时间和反馈规则会保存到学生资料。当前尚未接入定时任务；生成反馈后显示待反馈，老师标记发送后显示已反馈。
                 </p>
               </section>
               <div className="space-y-2 pt-1">
-                <button type="button" onClick={() => createWithRules(Boolean(payload.needsFeedback))} className="h-10 w-full rounded-[15px] bg-[#22c55e] text-[13px] font-black text-white transition hover:bg-[#16a34a]">
-                  {primaryLabel ?? "完成建档"}
+                <button type="button" disabled={saving} onClick={() => createWithRules(Boolean(payload.needsFeedback))} className="h-10 w-full rounded-[15px] bg-[#22c55e] text-[13px] font-black text-white transition hover:bg-[#16a34a]">
+                  {saving ? "正在保存…" : primaryLabel ?? "完成建档"}
                 </button>
               </div>
             </div>
@@ -418,7 +425,7 @@ function ClassPreviewCard({ payload }: { payload: CreationPayload }) {
         <PreviewLine icon={<MessageSquareText size={14} />} label="反馈待办" value={payload.needsFeedback ? compactPreviewText(payload.feedbackTrigger, payload.feedbackDeadline) || "待设置" : "稍后设置"} />
       </div>
       <p className="mt-3 rounded-[14px] bg-white px-3 py-2 text-[12px] font-semibold leading-5 text-[#3d4a3d]">
-        提醒：{payload.needsFeedback ? "弹窗通知" : "稍后设置"}。班级月报面向老师汇总，不会直接发送给家长。
+        反馈由老师手动生成和发送。个人学习报告需先选择学生。
       </p>
     </section>
   );

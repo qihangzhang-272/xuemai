@@ -67,7 +67,7 @@ function buildTaskTitle(task: TaskCard, status: WorkStatus) {
 }
 
 function buildTaskSource(task: TaskCard) {
-  if (task.taskType === "monthly_report") return "月报草稿";
+  if (task.taskType === "monthly_report") return task.structuredResult?.recordKind === "daily" ? "日报草稿" : "月报草稿";
   if (task.taskType === "learning_evidence_analysis") return "学生学习材料";
   if (task.taskType === "learning_record") return "课堂记录";
   if (task.taskType === "feedback" || task.taskType === "batch_feedback") return "家长反馈草稿";

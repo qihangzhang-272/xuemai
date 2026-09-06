@@ -29,6 +29,16 @@ async function observed(contactId = student.id) {
   return recordAction(teacher.id, draft.id, { action: "edit", revision: draft.revision, content: "学生经提示后能正确约分，这是本次课堂观察。", evidenceConfirmed: true });
 }
 describe("学脉独立闭环", () => {
+  it("占位模板不能被当成实际课堂记录", () => {
+    expect(() => createRecord(teacher.id, { contactId: student.id, kind: "record", date: "2026-09-05", input: "记录本节班课：今天讲了……学生整体表现……共性问题……" })).toThrow("省略号");
+    expect(createRecord(teacher.id, { contactId: student.id, kind: "record", date: "2026-09-05", input: "今天讲了分数乘法，学生整体表现：小陈经提醒后完成约分。" }).status).toBe("draft");
+  });
+  it("日报要求明确学生和真实日期，不接受班级或无效日期", () => {
+    const body = { contactId: student.id, kind: "daily", date: "2026-09-05" };
+    expect(createRecord(teacher.id, body).title).toBe("2026-09-05 学习日报");
+    expect(() => createRecord(teacher.id, { ...body, contactId: klass.id })).toThrow("请选择一位学生");
+    expect(() => createRecord(teacher.id, { ...body, date: "2026-02-30" })).toThrow("日期格式");
+  });
   it("原版表单的服务规则可持久保存，更新姓名不丢失规则", () => {
     const contact = saveContact(teacher.id, { kind: "student", name: "规则测试", subject: "数学", serviceRules: { learningGoal: "核对约分步骤", needsFeedback: true, arbitrary: "忽略" } });
     const updated = saveContact(teacher.id, { id: contact.id, kind: "student", name: "规则测试改名", subject: "数学" });
