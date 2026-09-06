@@ -1,4 +1,4 @@
-import { archiveEditedSkillCard, createEditableSkillCardState, editSkillCardField, resetSkillCardToOriginal } from "../../src/skills/actions";
+import { archiveEditedSkillCard, createEditableSkillCardState, editSkillCardField, resetSkillCardToOriginal, skillActionLabels } from "../../src/skills/actions";
 import type { EditableSkillCardState, SkillActionId, SkillOutputVersion } from "../../src/skills/types";
 import type { TaskCard } from "./types";
 
@@ -74,8 +74,8 @@ export function getTaskCardStatusCopy(status: TaskCard["status"], task?: Pick<Ta
   }
 
   return {
-    label: "AI 草稿",
-    description: "AI 草稿，待反馈或入档"
+    label: task && isFeedbackTask(task) ? "待发送" : "待确认",
+    description: "请老师检查正文后再继续"
   };
 }
 
@@ -88,28 +88,21 @@ export function shouldMinimizeArchivedSkillCard(status: TaskCard["status"]) {
 }
 
 export function isPrimarySkillCardAction(task: TaskCard, action: SkillActionId) {
-  if (task.skillId === "generate_feedback" || task.skillId === "parent_communication" || task.taskType === "feedback") {
-    return action === "copy_feedback" || action === "mark_parent_sent" || action === "archive";
-  }
-
-  if (task.skillId === "update_learning_record" || task.taskType === "learning_record") {
-    return action === "archive" || action === "generate_feedback" || action === "generate_next_lesson";
-  }
-
-  if (task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis") {
-    return action === "generate_feedback" || action === "copy_feedback" || action === "archive";
-  }
-
-  return action === "archive" || action === "generate_feedback";
+  const actions = task.actions ?? (isFeedbackTask(task) ? ["copy_feedback", "mark_parent_sent", "archive"] : ["archive", "generate_feedback"]);
+  return action === [...actions].sort((a, b) => getSkillCardActionPriority(task, a) - getSkillCardActionPriority(task, b))[0];
 }
 
 export function getSkillCardActionPriority(task: TaskCard, action: SkillActionId) {
-  const feedbackOrder: SkillActionId[] = ["copy_feedback", "mark_parent_sent", "archive", "make_warmer", "make_shorter", "regenerate"];
+  const feedbackOrder: SkillActionId[] = task.status === "copied"
+    ? ["mark_parent_sent", "copy_feedback", "archive", "make_warmer", "make_shorter", "regenerate"]
+    : ["copy_feedback", "mark_parent_sent", "archive", "make_warmer", "make_shorter", "regenerate"];
   const learningOrder: SkillActionId[] = ["archive", "generate_feedback", "generate_next_lesson", "save_note", "regenerate"];
-  const evidenceOrder: SkillActionId[] = ["generate_feedback", "copy_feedback", "archive", "add_monthly_material", "generate_next_lesson", "regenerate"];
+  const evidenceOrder: SkillActionId[] = ["archive", "generate_feedback", "copy_feedback", "add_monthly_material", "generate_next_lesson", "regenerate"];
 
   const order =
-    task.skillId === "generate_feedback" || task.skillId === "parent_communication" || task.taskType === "feedback"
+    task.taskType === "monthly_report"
+      ? ["archive", "copy_feedback", "generate_feedback", "regenerate"]
+      : task.skillId === "generate_feedback" || task.skillId === "parent_communication" || task.taskType === "feedback"
       ? feedbackOrder
       : task.skillId === "update_learning_record" || task.taskType === "learning_record"
         ? learningOrder
@@ -121,6 +114,14 @@ export function getSkillCardActionPriority(task: TaskCard, action: SkillActionId
   return index >= 0 ? index : order.length + 1;
 }
 
+export function getTaskActionLabel(task: TaskCard, action: SkillActionId) {
+  if (action === "generate_feedback") return task.structuredResult?.hasFeedback ? "查看家长反馈" : "生成家长反馈";
+  if (action === "copy_feedback") return task.taskType === "feedback" ? "复制家长反馈" : "复制正文";
+  if (action === "mark_parent_sent") return "标记已发给家长";
+  if (action === "archive") return "确认并入档";
+  return skillActionLabels[action];
+}
+
 export function getSkillCardVersionMeta(task: TaskCard): SkillCardVersionMeta {
   const state = createEditableStateFromTask(task);
   const field = getEditableField(task, state.current_output);
@@ -128,7 +129,7 @@ export function getSkillCardVersionMeta(task: TaskCard): SkillCardVersionMeta {
   const currentText = readOutputText(state.current_output, field.path);
   const archivedText = state.archived_output ? readOutputText(state.archived_output, field.path) : undefined;
   const editCount = state.edit_events.length;
-  const isEdited = editCount > 0 && originalText !== currentText;
+  const isEdited = originalText !== currentText;
 
   return {
     field: {
@@ -141,7 +142,7 @@ export function getSkillCardVersionMeta(task: TaskCard): SkillCardVersionMeta {
     isEdited,
     isArchived: Boolean(state.archived_output),
     editCount,
-    editLabel: editCount === 0 ? "未编辑" : isEdited ? `已编辑 · ${editCount} 次` : `已重置为原稿 · ${editCount} 次`,
+    editLabel: isEdited ? (editCount ? `已编辑 · ${editCount} 次` : "老师已修改") : editCount ? `已重置为原稿 · ${editCount} 次` : "未编辑",
     archiveLabel: state.archived_output ? "已入档当前版" : "未入档"
   };
 }

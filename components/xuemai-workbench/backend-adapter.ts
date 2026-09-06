@@ -22,6 +22,21 @@ export async function backend<T>(path: string, body?: unknown, method = "POST"):
 }
 export function recordId(task: Pick<TaskCard, "id">) { return task.id.replace(/:feedback$/, ""); }
 export function isFeedback(task: Pick<TaskCard, "id">) { return task.id.endsWith(":feedback"); }
+export function nextClassroomStep(record?: LearningRecord) {
+  if (!record) return "记下课堂内容与学生表现，点击「整理记录」开始。";
+  if (record.status === "running") return "正在整理本次记录，请稍候。";
+  if (record.status === "failed") return "这条记录未整理完成，原文已保存。打开失败记录后可以重试。";
+  if (!record.content) return "原文已保存，点击「重新生成」整理课堂记录。";
+  if (record.kind === "prep") return "备课建议已整理，检查后可按班级情况调整；上课后再记录学生的实际表现。";
+  if (record.kind === "daily" || record.kind === "monthly") return record.archivedAt
+    ? "报告已入档，可以打开报告复制正文，或继续记录下一节课。"
+    : "检查学习报告的学生、日期与正文，确认后点击「确认并入档」。";
+  if (record.evidence !== "observed") return "请补充学生的实际作答、订正或课堂表现，再重新整理。";
+  if (!record.archivedAt) return "检查课堂记录是否准确，确认后点击「确认并入档」。";
+  if (!record.feedback) return "记录已入档，下一步可以生成家长反馈。";
+  if (record.feedbackStatus !== "sent") return "检查家长反馈后复制到微信，发送后回来标记已发。";
+  return "本次记录与反馈已完成，可以继续记录下一节课。";
+}
 export const recordSkill: Record<LearningRecord["kind"], SkillId> = {
   record: "update_learning_record", analysis: "analyze_learning_evidence", prep: "next_lesson_plan", monthly: "monthly_report", daily: "monthly_report",
 };
@@ -39,8 +54,9 @@ export function toTask(record: LearningRecord, contact: Conversation, feedback =
     : feedback ? record.feedbackStatus === "sent" ? ["copy_feedback"] : ["copy_feedback", "mark_parent_sent", "make_warmer", "make_shorter", "regenerate"]
     : !text ? ["regenerate"] : [
       ...(!locked ? ["regenerate" as const] : []),
+      ...(["monthly", "daily"].includes(record.kind) ? ["copy_feedback" as const] : []),
       ...(record.evidence === "observed" && record.kind !== "prep" ? [
-        ...(record.feedbackStatus !== "sent" ? ["generate_feedback" as const] : []),
+        ...(record.feedback || record.feedbackStatus !== "sent" ? ["generate_feedback" as const] : []),
         ...(contact.kind === "student" && !record.archivedAt ? ["archive" as const] : []),
       ] : []),
       "generate_next_lesson",
@@ -55,7 +71,7 @@ export function toTask(record: LearningRecord, contact: Conversation, feedback =
     detail: record.error || text, originalOutput: { display_content: original, structured_result: {} },
     currentOutput: { display_content: text, structured_result: {} },
     archivedOutput: !feedback && record.archiveContent ? { display_content: record.archiveContent, structured_result: {} } : undefined,
-    structuredResult: { evidence: record.evidence, recordKind: record.kind, date: record.date, month: record.month, sourceIds: record.sourceIds, locked: feedback ? record.feedbackStatus === "sent" : locked }, actions, nextSuggestions: [],
+    structuredResult: { evidence: record.evidence, recordKind: record.kind, date: record.date, month: record.month, sourceIds: record.sourceIds, hasFeedback: !!record.feedback, locked: feedback ? record.feedbackStatus === "sent" : locked }, actions, nextSuggestions: [],
     contextSources: [{ id: record.id, label: "老师提交的课堂记录与材料", type: "teacher_input" }],
     archiveTarget: contact.kind === "class" ? "班级课堂记录" : "学生档案 > 学习记录",
     createdAt: record.createdAt, updatedAt: record.updatedAt,

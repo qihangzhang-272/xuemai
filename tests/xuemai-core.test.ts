@@ -12,7 +12,7 @@ const { createUser, get, put, mutateRecord } = await import("../lib/xuemai/db");
 const { createRecord, recordAction, saveContact, snapshot } = await import("../lib/xuemai/service");
 const { monthlySources } = await import("../lib/xuemai/ai");
 const { checkOrigin, readPassword } = await import("../lib/xuemai/auth");
-const { mdtRead } = await import("../lib/xuemai/mdt");
+const { POST: login } = await import("../app/api/xuemai/auth/route");
 const teacher = createUser("unit", "单元老师", "unused");
 const other = createUser("other", "其他老师", "unused");
 let student: ReturnType<typeof saveContact>;
@@ -119,7 +119,7 @@ describe("学脉独立闭环", () => {
   it("长时间中断的请求能恢复成明确失败状态", () => {
     const draft = record();
     put(teacher.id, "record", { ...draft, status: "running", updatedAt: "2020-01-01T00:00:00Z" });
-    snapshot({ teacher, tokenHash: "test", upstreamCookie: "" });
+    snapshot({ teacher, tokenHash: "test" });
     expect(get(teacher.id, "record", draft.id).status).toBe("failed");
   });
   it("事务失败回滚，原版本保持", () => {
@@ -132,9 +132,14 @@ describe("学脉独立闭环", () => {
     expect(() => checkOrigin(new Request("http://localhost:3016/api/xuemai/auth", { headers: { host: "127.0.0.1:3016", origin: "http://127.0.0.1:3016" } }))).not.toThrow();
     expect(() => checkOrigin(new Request("http://localhost:3016/api/xuemai/auth", { headers: { host: "127.0.0.1:3016", origin: "https://untrusted.example" } }))).toThrow();
   });
-  it("后端适配拒绝非白名单路径", async () => {
-    await expect(mdtRead("cookie", "/api/register")).rejects.toThrow("不支持");
-    await expect(mdtRead("cookie", "https://untrusted.example")).rejects.toThrow("不支持");
+  it("拒绝旧项目登录方式，不发起旧服务请求", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    try {
+      const response = await login(new Request("http://localhost/api/xuemai/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "mdt", identifier: "retired-mode", password: "test-password" }) }));
+      expect(response.status).toBe(400);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(snapshot({ teacher, tokenHash: "test" }).services).not.toHaveProperty("mdt");
+    } finally { fetchSpy.mockRestore(); }
   });
   it("日期标签不会在负时区回退一天", () => { expect(dateLabel("2026-09-04")).toBe("9月4日"); });
 });

@@ -6,7 +6,7 @@ import { isPasswordWithinLimit } from "../mdt/password";
 
 export const sessionCookie = "xuemai_session";
 export const digest = (token: string) => createHash("sha256").update(token).digest("hex");
-export type Session = { tokenHash: string; teacher: Teacher; upstreamCookie: string };
+export type Session = { tokenHash: string; teacher: Teacher };
 
 export function readPassword(value: unknown): string {
   if (typeof value !== "string" || !value.length) throw new AppError("请输入密码");
@@ -17,17 +17,17 @@ export function readPassword(value: unknown): string {
 export async function session(): Promise<Session> {
   const token = (await cookies()).get(sessionCookie)?.value;
   if (!token) throw new AppError("请先登录学脉", 401);
-  const row = db().prepare(`SELECT users.*, sessions.upstream_cookie FROM sessions
-    JOIN users ON users.id = sessions.user_id WHERE token_hash = ? AND expires_at > ?`).get(digest(token), Date.now()) as (UserRow & { upstream_cookie: string }) | undefined;
+  const row = db().prepare(`SELECT users.* FROM sessions
+    JOIN users ON users.id = sessions.user_id WHERE token_hash = ? AND expires_at > ?`).get(digest(token), Date.now()) as UserRow | undefined;
   if (!row) throw new AppError("登录已过期，请重新登录", 401);
-  return { tokenHash: digest(token), teacher: { id: row.id, name: row.name, identifier: row.identifier }, upstreamCookie: row.upstream_cookie };
+  return { tokenHash: digest(token), teacher: { id: row.id, name: row.name, identifier: row.identifier } };
 }
 
-export async function startSession(teacher: Teacher, upstreamCookie = "") {
+export async function startSession(teacher: Teacher) {
   const token = randomBytes(32).toString("hex");
   const maxAge = 7 * 24 * 60 * 60;
   db().prepare("DELETE FROM sessions WHERE expires_at <= ?").run(Date.now());
-  db().prepare("INSERT INTO sessions VALUES (?, ?, ?, ?)").run(digest(token), teacher.id, Date.now() + maxAge * 1000, upstreamCookie);
+  db().prepare("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)").run(digest(token), teacher.id, Date.now() + maxAge * 1000);
   (await cookies()).set(sessionCookie, token, { httpOnly: true, sameSite: "strict", secure: process.env.XUEMAI_HTTPS === "true", path: "/", maxAge });
 }
 

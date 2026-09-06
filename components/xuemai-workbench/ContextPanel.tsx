@@ -1,27 +1,26 @@
-import { TeachingContent } from "./TeachingContent";
-import { useEffect, useState } from "react";
-import { ChevronRight, PanelRightClose, PanelRightOpen, RotateCcw, Save, UsersRound, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { skillActionLabels } from "@/src/skills/actions";
+import { ChevronRight, PanelRightClose, PanelRightOpen, RotateCcw, Save, UsersRound, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { LearningEvidenceReportPanel } from "./LearningEvidenceReportPanel";
 import { LearningMaterialUserResultPanel } from "./LearningMaterialUserResultPanel";
+import { TeachingContent } from "./TeachingContent";
+import { groupProfileUpdatesByTarget } from "./learning-evidence-profile-updates";
 import { getLearningEvidenceReport } from "./learning-evidence-report-view";
 import { getStudentLearningMaterialUserFacingResult } from "./learning-material-user-result-view";
-import { groupProfileUpdatesByTarget } from "./learning-evidence-profile-updates";
-import {
-  buildStudentTimelineItems,
-  countTimelineItemsByFilter,
-  getLatestProfileUpdateValue,
-  getMonthlyReportSourcesForConversation,
-  getProfileUpdatesForConversation,
-  getTimelineRecordsForConversation,
-  simplifyProfileLabel,
-  studentTimelineFilters,
-  type StudentTimelineFilter,
-  type StudentTimelineItem
-} from "./student-timeline-view";
+import { getSkillCardActionPriority, getSkillCardVersionMeta, getTaskActionLabel, getTaskCardStatusCopy } from "./skill-card-version";
 import { buildSkillRunEventTimeline, type SkillRunEventTimelineItem } from "./skill-run-event-view";
-import { getSkillCardVersionMeta, getTaskCardStatusCopy } from "./skill-card-version";
+import {
+buildStudentTimelineItems,
+countTimelineItemsByFilter,
+getLatestProfileUpdateValue,
+getMonthlyReportSourcesForConversation,
+getProfileUpdatesForConversation,
+getTimelineRecordsForConversation,
+simplifyProfileLabel,
+studentTimelineFilters,
+type StudentTimelineFilter,
+type StudentTimelineItem
+} from "./student-timeline-view";
 import { allSubjectsLabel, normalizeSubjectText, splitSubjectText } from "./subject-utils";
 import type { Conversation, Message, ProfileUpdateRecord, SkillAction, TaskCard, TimelineRecord } from "./types";
 
@@ -118,8 +117,12 @@ function GenericTaskReviewPanel({ task, onAction, onEdit, onReset }: { task: Tas
   const running = task.status === "running";
   const locked = task.status === "archived" || task.structuredResult?.locked === true;
   const changed = draft.trim() !== reviewText.trim();
-  const actions = getReviewActions(task);
+  const actions = getReviewActions(task).sort((a, b) => getSkillCardActionPriority(task, a) - getSkillCardActionPriority(task, b));
   const actionTimeline = buildSkillRunEventTimeline(task.actionEvents, { limit: 6 });
+  const actionHint = task.status === "feedback_done" ? "已标记发送，正文已保存，可再次复制留用"
+    : task.taskType === "feedback" ? "检查称呼与内容后，复制到微信发送"
+    : task.status === "archived" ? task.taskType === "monthly_report" ? "报告已入档，可复制正文分享给家长" : "记录已保存，可以继续准备反馈"
+    : "先检查正文，再确认保存到学生档案";
 
   return (
     <div className="space-y-4">
@@ -131,19 +134,13 @@ function GenericTaskReviewPanel({ task, onAction, onEdit, onReset }: { task: Tas
           </div>
           <span className={cn("shrink-0 rounded-full px-2 py-1 text-[11px] font-bold", getReviewStatusTone(task.status))}>{statusCopy.label}</span>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-semibold text-[#6b746d]">
-          <ReviewMeta label="入档目标" value={task.archiveTarget ?? "待入档"} />
-          <ReviewMeta label="编辑状态" value={version.editLabel} />
-          {task.confidenceLevel ? <ReviewMeta label="可信度" value={formatConfidence(task.confidenceLevel)} /> : null}
-          <ReviewMeta label="更新时间" value={formatShortTime(task.updatedAt)} />
-        </div>
+        <p className="mt-2 text-[12px] text-[#6b746d]">{task.targetName} · {String(task.structuredResult?.date || formatShortTime(task.updatedAt))}</p>
       </section>
 
       <section className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <div>
             <p className="text-xs font-bold text-[#191c1d]">{task.status === "archived" ? "最终入档版" : "当前版本"}</p>
-            <p className="mt-0.5 text-[11px] font-medium text-[#8a948d]">{version.field.label} · 保存后不会改写 AI 原稿</p>
           </div>
           {version.isEdited ? <span className="rounded-full bg-[#fff7ed] px-2 py-0.5 text-[11px] font-bold text-[#c2410c]">已编辑</span> : null}
         </div>
@@ -157,27 +154,29 @@ function GenericTaskReviewPanel({ task, onAction, onEdit, onReset }: { task: Tas
         /> : <TeachingContent text={reviewText} className="text-[13px] font-semibold leading-6 text-[#26312a]" />}
         <div className="flex flex-wrap items-center gap-1.5">
           {!locked && !editing ? <button type="button" disabled={running} onClick={() => setEditing(true)} className="h-8 rounded-full border border-[#bccbb9] px-3 text-xs font-bold">编辑正文</button> : null}
-          <button type="button" disabled={running || locked || !changed || saving} onClick={async () => { setSaving(true); try { if (await onEdit?.(task, draft) !== false) setEditing(false); } finally { setSaving(false); } }} className="inline-flex h-8 items-center gap-1 rounded-full bg-[#22c55e] px-3 text-xs font-bold text-white transition hover:bg-[#16a34a] disabled:cursor-not-allowed disabled:bg-[#c2c8c3]">
+          {editing ? <button type="button" disabled={running || locked || !changed || saving} onClick={async () => { setSaving(true); try { if (await onEdit?.(task, draft) !== false) setEditing(false); } finally { setSaving(false); } }} className="inline-flex h-8 items-center gap-1 rounded-full bg-[#22c55e] px-3 text-xs font-bold text-white transition hover:bg-[#16a34a] disabled:cursor-not-allowed disabled:bg-[#c2c8c3]">
             <Save size={14} />
             {saving ? "正在保存…" : "保存编辑"}
-          </button>
-          <button type="button" disabled={running || locked || !version.isEdited} onClick={() => onReset?.(task)} className="inline-flex h-8 items-center gap-1 rounded-full bg-[#f3f4f5] px-3 text-xs font-bold text-[#3d4a3d] transition hover:bg-[#e7e8e9] disabled:cursor-not-allowed disabled:opacity-40">
+          </button> : null}
+          {editing ? <button type="button" disabled={saving} onClick={() => { setDraft(reviewText); setEditing(false); }} className="h-8 rounded-full border border-[#bccbb9] px-3 text-xs font-bold">取消编辑</button> : null}
+          {editing && version.isEdited ? <button type="button" disabled={running || locked || saving} onClick={() => onReset?.(task)} className="inline-flex h-8 items-center gap-1 rounded-full bg-[#f3f4f5] px-3 text-xs font-bold text-[#3d4a3d] transition hover:bg-[#e7e8e9] disabled:cursor-not-allowed disabled:opacity-40">
             <RotateCcw size={14} />
             重置原稿
-          </button>
+          </button> : null}
         </div>
       </section>
 
       {actions.length ? (
         <section className="border-y border-[#edeef0] py-3">
-          <p className="text-xs font-bold text-[#191c1d]">可做操作</p>
+          <p className="text-xs font-bold text-[#191c1d]">{actionHint}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {actions.map((action) => (
-              <button key={action} type="button" disabled={running || changed} onClick={() => onAction?.(task, action)} className={cn("inline-flex h-8 items-center rounded-full px-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-45", action === "archive" ? "bg-[#22c55e] text-white hover:bg-[#16a34a]" : "bg-[#f3f4f5] text-[#3d4a3d] hover:bg-[#e7e8e9]")}>
-                {skillActionLabels[action]}
+            {actions.slice(0, 1).map((action) => (
+              <button key={action} type="button" disabled={running || editing} onClick={() => onAction?.(task, action)} className="inline-flex min-h-9 items-center rounded-full bg-[#22c55e] px-3 text-xs font-bold text-white transition hover:bg-[#16a34a] disabled:cursor-not-allowed disabled:opacity-45">
+                {getTaskActionLabel(task, action)}
               </button>
             ))}
           </div>
+          {actions.length > 1 ? <details className="mt-2 text-xs text-[#5c665f]"><summary className="w-fit cursor-pointer py-2 font-semibold">更多操作</summary><div className="flex flex-wrap gap-2">{actions.slice(1).map(action => <button key={action} type="button" disabled={running || editing} onClick={() => onAction?.(task, action)} className="min-h-9 rounded-full bg-[#f3f4f5] px-3 font-semibold disabled:opacity-45">{getTaskActionLabel(task, action)}</button>)}</div></details> : null}
         </section>
       ) : null}
 
@@ -185,15 +184,6 @@ function GenericTaskReviewPanel({ task, onAction, onEdit, onReset }: { task: Tas
       {task.inputSummary ? <details className="text-[13px] text-[#6b746d]"><summary className="cursor-pointer font-bold">查看本次输入</summary><p className="mt-2 whitespace-pre-wrap leading-6">{task.inputSummary}</p></details> : null}
 
       {version.isEdited ? <details className="text-[13px] text-[#6b746d]"><summary className="cursor-pointer font-bold">对照修改前的草稿</summary><TeachingContent text={version.originalText} className="mt-2 leading-6" /></details> : null}
-    </div>
-  );
-}
-
-function ReviewMeta({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[12px] bg-[#f7f8f7] px-2.5 py-2">
-      <p className="text-[10px] font-bold text-[#9aa19d]">{label}</p>
-      <p className="mt-0.5 truncate text-[12px] font-bold text-[#3d4a3d]">{value}</p>
     </div>
   );
 }
@@ -238,7 +228,7 @@ function getActionTimelineDot(tone: SkillRunEventTimelineItem["tone"]) {
 function getReviewActions(task: TaskCard): SkillAction[] {
   const actions = task.actions ?? getFallbackReviewActions(task);
   if (task.status === "archived") {
-    return actions.filter((action) => action === "regenerate" || action === "generate_feedback" || action === "generate_next_lesson");
+    return actions.filter((action) => action === "copy_feedback" || action === "regenerate" || action === "generate_feedback" || action === "generate_next_lesson");
   }
   if (task.status === "running" || task.status === "failed") return actions.filter((action) => action === "regenerate");
   return actions;
@@ -257,13 +247,6 @@ function getReviewStatusTone(status: TaskCard["status"]) {
   if (status === "feedback_done" || status === "copied") return "bg-[#edf8f1] text-[#006e2f]";
   if (status === "running") return "bg-[#fef3c7] text-[#92400e]";
   return "bg-[#f3f4f5] text-[#3d4a3d]";
-}
-
-function formatConfidence(value: TaskCard["confidenceLevel"]) {
-  if (value === "high") return "高";
-  if (value === "medium") return "中";
-  if (value === "low") return "低";
-  return "未标注";
 }
 
 function formatShortTime(value: string) {

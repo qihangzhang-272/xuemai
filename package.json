@@ -12,7 +12,6 @@
     "test:source": "vitest run",
     "test:smoke": "node scripts/smoke-xuemai.mjs",
     "test:materials": "node scripts/smoke-xuemai-materials.mjs",
-    "test:mdt": "node scripts/smoke-xuemai-mdt.mjs",
     "backup": "node scripts/backup-xuemai.mjs"
   },
   "dependencies": {

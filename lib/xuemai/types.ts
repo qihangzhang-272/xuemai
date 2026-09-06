@@ -59,7 +59,7 @@ export type Snapshot = {
   records: LearningRecord[];
   attachments: Attachment[];
   preferences: Preferences;
-  services: { model: string; ai: boolean; documents: boolean; mdt: boolean };
+  services: { model: string; ai: boolean; documents: boolean };
 };
 
 export function contactStatus(records: LearningRecord[], kind: Contact["kind"] = "student") {

@@ -16,6 +16,7 @@ supabase/.temp
 .xuemai-test-*/
 output/
 .local-access.txt
+.demo-access.txt
 
 # Local planning and review artifacts
 docs/audits/

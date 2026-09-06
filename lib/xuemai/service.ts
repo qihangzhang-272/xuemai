@@ -20,7 +20,7 @@ export function snapshot(current: Session): Snapshot {
   }
   return { teacher: current.teacher, contacts: list(owner, "contact"), records,
     attachments: list(owner, "attachment").map(a => ({ ...a, text: "", providerTaskId: undefined })), preferences: preferences(owner),
-    services: { model: aiModel(), ai: !!process.env.QWEN_API_KEY, documents: !!process.env.MINERU_API_TOKEN, mdt: !!current.upstreamCookie } };
+    services: { model: aiModel(), ai: !!process.env.QWEN_API_KEY, documents: !!process.env.MINERU_API_TOKEN } };
 }
 
 export function saveContact(owner: string, body: Record<string, unknown>) {

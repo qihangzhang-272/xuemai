@@ -2,7 +2,6 @@ import { cookies } from "next/headers";
 import { apiError, digest, readBody, readPassword, session, sessionCookie, startSession, checkOrigin } from "@/lib/xuemai/auth";
 import { AppError, createUser, db, text, userByIdentifier } from "@/lib/xuemai/db";
 import { hashPassword, verifyPassword } from "@/lib/mdt/password";
-import { mdtLogin } from "@/lib/xuemai/mdt";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,13 +21,7 @@ export async function POST(request: Request) {
     if (++entry.count > 12) throw new AppError("尝试次数较多，请十分钟后重试", 429);
     attempts.set(identifier, entry);
     let user;
-    let upstreamCookie = "";
-    if (body.mode === "mdt") {
-      const remote = await mdtLogin(identifier, password);
-      const key = `mdt:${remote.user.orgId}:${remote.user.id}`;
-      user = userByIdentifier(key) || createUser(key, remote.user.name, "");
-      upstreamCookie = remote.cookie;
-    } else if (body.mode === "register") {
+    if (body.mode === "register") {
       if (password.length < 8) throw new AppError("密码至少 8 位");
       if (identifier.startsWith("mdt:")) throw new AppError("该账号前缀不可使用");
       user = createUser(identifier, text(body.name, "老师姓名", 40), await hashPassword(password));
@@ -37,7 +30,7 @@ export async function POST(request: Request) {
       if (!user?.password_hash || !(await verifyPassword(password, user.password_hash))) throw new AppError("账号或密码不正确", 401);
     } else { throw new AppError("请选择登录方式"); }
     const teacher = { id: user.id, name: user.name, identifier: user.identifier };
-    await startSession(teacher, upstreamCookie);
+    await startSession(teacher);
     attempts.delete(identifier);
     return Response.json({ teacher });
   } catch (error) { return apiError(error); }

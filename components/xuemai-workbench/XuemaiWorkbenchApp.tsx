@@ -1,26 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Attachment, Contact, LearningRecord, Snapshot } from "@/lib/xuemai/types";
+import { Plus, Search, UserRound, UsersRound, X } from "lucide-react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
-import { ImagePlus, Plus, Search, UserRound, UsersRound, X } from "lucide-react";
-import { AutomationAssistantEmptyState, ChatHeader, Composer, ConfirmTaskCard, EmptyConversationState, MessageRow } from "./ChatParts";
-import type { AutomationTemplate } from "./ChatParts";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComposerAttachment } from "./ChatParts";
-import { ContextPanel } from "./ContextPanel";
-import { ReportDialog } from "./ReportDialog";
+import { ChatHeader, Composer, ConfirmTaskCard, EmptyConversationState, MessageRow } from "./ChatParts";
 import { CreateDialog } from "./CreateDialog";
-import { ProfileDrawer, SearchDrawer, SideDrawer, TaskDetailDrawer, drawerTitle } from "./Drawers";
 import type { SearchDrawerResultTarget } from "./Drawers";
-import { AssistantConversationEntry, ConversationGroup, MenuButton, Rail } from "./Navigation";
+import { ProfileDrawer, SearchDrawer, SideDrawer, TaskDetailDrawer, drawerTitle } from "./Drawers";
+import { ConversationGroup, MenuButton, Rail } from "./Navigation";
 import { LoginScreen, SettingsPanel } from "./Panels";
-import { WorkOverviewPanel } from "./WorkOverviewPanel";
+import { ReportDialog } from "./ReportDialog";
 import { SideChatPanel } from "./SideChatPanel";
 import { StudentDetailModal } from "./StudentDetailModal";
 import { TaskReviewWorkspace } from "./TaskReviewWorkspace";
-import { detectIntent, nowIso, uid } from "./chat-engine";
-import { backend, emptyState as initialState, isFeedback, recordId, toChatState } from "./backend-adapter";
-import type { Attachment, Contact, LearningRecord, Snapshot } from "@/lib/xuemai/types";
-import type { ActiveDrawer, Conversation, CreationMode, CreationPayload, Message, SideChatContextOption, SideChatContextType, SideChatSession, SkillAction, SmartInputAction, TaskCard, TaskType, TeacherProfile, TimelineRecord, UserPreferences, WorkspaceMode } from "./types";
+import { WorkOverviewPanel } from "./WorkOverviewPanel";
+import { backend, emptyState as initialState, isFeedback, nextClassroomStep, recordId, toChatState } from "./backend-adapter";
+import { nowIso, uid } from "./chat-engine";
+import type { ActiveDrawer, Conversation, CreationMode, CreationPayload, Message, SideChatContextOption, SideChatSession, SkillAction, TaskCard, TeacherProfile, TimelineRecord, UserPreferences, WorkspaceMode } from "./types";
 
 
 
@@ -28,8 +26,8 @@ import type { ActiveDrawer, Conversation, CreationMode, CreationPayload, Message
 import { getSkillByTriggerLabel, getSkillsForSubject } from "@/src/skills/registry";
 
 
-import type { SkillId, SkillSubjectType } from "@/src/skills/types";
 import { cn } from "@/lib/utils";
+import type { SkillId, SkillSubjectType } from "@/src/skills/types";
 
 import { allSubjectsLabel, cleanSubjectPlaceholderText, getSelectedSubjectTrack, getSubjectSummaryLabel, getSubjectTracks, normalizeSubjectText } from "./subject-utils";
 
@@ -39,24 +37,6 @@ const sideWorkspaceDefaultWidth = 560;
 
 
 
-
-const automationTemplates: AutomationTemplate[] = [
-  {
-    label: "每日简报",
-    description: "汇总今天最需要先处理的学生、反馈和入档事项。",
-    prompt: "帮我生成今天的教学服务简报：列出待反馈学生、待确认入档卡片、本周需要跟进的风险点，并按优先级给出处理顺序。"
-  },
-  {
-    label: "每周回顾",
-    description: "整理本周服务进展、遗漏事项和下周安排。",
-    prompt: "帮我做一版本周教学服务回顾：总结本周已完成的反馈和入档记录，找出还没闭环的学生，并给出下周优先跟进计划。"
-  },
-  {
-    label: "服务监控",
-    description: "检查月报、续费、家长沟通和学习材料分析是否有遗漏。",
-    prompt: "帮我检查当前工作台是否有服务遗漏：包括未处理学习材料、未生成微信反馈、未入档记录、月报素材不足和需要续费跟进的学生。"
-  }
-];
 
 export function XuemaiWorkbenchApp() {
   const [mode, setMode] = useState<WorkspaceMode>("chat");
@@ -89,7 +69,7 @@ export function XuemaiWorkbenchApp() {
   const [searchFilter, setSearchFilter] = useState("全部");
   const [searchDrawerQuery, setSearchDrawerQuery] = useState("");
   const [searchDrawerScope, setSearchDrawerScope] = useState<"global" | "conversation">("conversation");
-  const [isContextOpen, setIsContextOpen] = useState(true);
+  const [, setIsContextOpen] = useState(false);
   const [sideChats, setSideChats] = useState<SideChatSession[]>([]);
   const [activeSideChatId, setActiveSideChatId] = useState<string | null>(null);
   const [sideChatInput, setSideChatInput] = useState("");
@@ -116,6 +96,7 @@ export function XuemaiWorkbenchApp() {
     snapshotRef.current = data;
     const view = toChatState(data);
     setConversations(view.conversations); setMessages(view.messages); setTaskCards(view.taskCards);
+    setActiveId(previous => previous === initialState.currentConversationId ? (view.conversations.find(item => item.kind === "student")?.id || view.conversations.find(item => item.kind === "class")?.id || previous) : previous);
     setTimelineRecords(view.timelineRecords); setTeacher(view.teacher);
     setPreferences(previous => ({ ...view.preferences, autoAnalyzeUploadedPaper: previous.autoAnalyzeUploadedPaper }));
     setHasLoadedStorage(true);
@@ -177,7 +158,7 @@ export function XuemaiWorkbenchApp() {
   const activeSubjectOptions = useMemo(() => getSubjectTracks(activeConversation), [activeConversation]);
   const activeSubjectTrack = getSelectedSubjectTrack(activeConversation, subjectContextByConversationId[activeConversation.id]);
   const subjectType = getSubjectType(activeConversation);
-  const quickSkills = useMemo(() => getSkillsForSubject(subjectType).filter(skill => ["update_learning_record", "analyze_learning_evidence", "generate_feedback", "next_lesson_plan", "monthly_report", "class_lesson_record", "today_todos"].includes(skill.id)), [subjectType]);
+  const quickSkills = useMemo(() => getSkillsForSubject(subjectType).filter(skill => ["update_learning_record", "analyze_learning_evidence", "next_lesson_plan", "class_lesson_record"].includes(skill.id)), [subjectType]);
   const quickTasks = useMemo(() => quickSkills.map((skill) => getSkillDisplayLabel(skill, activeConversation)), [activeConversation, quickSkills]);
   const activeSkill = activeSkillId ? quickSkills.find((skill) => skill.id === activeSkillId) : undefined;
   const activeQuickTaskLabel = activeSkill ? getSkillDisplayLabel(activeSkill, activeConversation) : undefined;
@@ -187,16 +168,7 @@ export function XuemaiWorkbenchApp() {
     () => buildSideChatContextOptions(activeConversation, currentTaskCards, currentTimelineRecords),
     [activeConversation, currentTaskCards, currentTimelineRecords]
   );
-  const workspaceColumns =
-    mode === "todos"
-      ? "56px minmax(0,1fr)"
-      : mode === "side-chat" || mode === "settings" || isAutomationAssistant
-      ? "56px clamp(260px,21vw,320px) minmax(0,1fr)"
-      : isContextOpen
-        ? reviewTask
-          ? "56px clamp(260px,20vw,320px) minmax(0,1fr) clamp(380px,31vw,500px)"
-          : "56px clamp(260px,21vw,320px) minmax(0,1fr) clamp(280px,21vw,340px)"
-        : "56px clamp(260px,21vw,320px) minmax(0,1fr) 42px";
+  const workspaceColumns = mode === "todos" ? "56px minmax(0,1fr)" : "56px clamp(240px,21vw,300px) minmax(0,1fr)";
   const workspaceStyle = { "--workspace-columns": workspaceColumns } as CSSProperties;
 
   useEffect(() => {
@@ -239,7 +211,6 @@ export function XuemaiWorkbenchApp() {
 
   const isGlobalSearchActive = query.trim().length > 0;
   const globalSearchResults = useMemo(() => buildSidebarGlobalSearchResults({ query, conversations, messages, taskCards, timelineRecords }), [conversations, messages, query, taskCards, timelineRecords]);
-  const assistantConversation = conversations.find((item) => item.kind === "assistant");
   const classConversations = conversations.filter((item) => item.kind === "class");
   const studentConversations = conversations.filter((item) => item.kind === "student");
   const editingConversation = editingConversationId ? conversations.find((item) => item.id === editingConversationId) : undefined;
@@ -247,7 +218,7 @@ export function XuemaiWorkbenchApp() {
   const statusSummary = useMemo(() => {
     const displayStatusLabel = getHeaderStatusLabel(activeConversation.statusLabel, currentTaskCards, currentTimelineRecords);
     if (activeConversation.kind === "assistant") {
-      return "每日提醒 · 自动化任务 · 全局工作台";
+      return "课堂记录与家长反馈";
     }
     if (activeConversation.kind === "class") {
       return joinHeaderParts([`${activeConversation.members ?? currentClassMembers.length} 名学生`, activeConversation.subject, displayStatusLabel]);
@@ -284,24 +255,6 @@ export function XuemaiWorkbenchApp() {
     setMode("side-chat");
     const existingSession = currentSideChats[0];
     setActiveSideChatId((value) => (value && currentSideChats.some((session) => session.id === value) ? value : existingSession?.id ?? null));
-  }
-
-  function openSideChatForContext(type: SideChatContextType) {
-    const option = sideChatContextOptions.find((item) => item.type === type) ?? sideChatContextOptions[0];
-    if (!option) {
-      openSideChatPanel();
-      return;
-    }
-    const existingSession = currentSideChats.find((session) => session.contextType === option.type && session.sourceId === option.sourceId);
-    setReviewTaskId(null);
-    setActiveDrawer(null);
-    setMode("side-chat");
-    setSideChatInput("");
-    if (existingSession) {
-      setActiveSideChatId(existingSession.id);
-      return;
-    }
-    createSideChatSession(option);
   }
 
   function closeSideChatPanel() {
@@ -425,45 +378,7 @@ export function XuemaiWorkbenchApp() {
 
   function openStudentProfileSideChat(studentId: string) {
     selectConversation(studentId);
-    window.setTimeout(() => {
-      setMode("side-chat");
-      setReviewTaskId(null);
-      setActiveDrawer(null);
-      setSideChatInput("");
-      const student = conversations.find((item) => item.id === studentId);
-      if (!student) return;
-      const option: SideChatContextOption = {
-        id: `${student.id}-profile`,
-        type: "student_profile",
-        title: `${student.name} 学生档案`,
-        description: `${student.grade} · ${student.subject} · 可追问薄弱点、家长关注点和下次跟进。`
-      };
-      const existingSession = sideChats.find((session) => session.conversationId === student.id && session.contextType === "student_profile");
-      if (existingSession) {
-        setActiveSideChatId(existingSession.id);
-        return;
-      }
-      const createdAt = nowIso();
-      const session: SideChatSession = {
-        id: uid("side_chat"),
-        conversationId: student.id,
-        title: option.title,
-        contextType: option.type,
-        contextLabel: option.title,
-        messages: [
-          {
-            id: uid("side_msg"),
-            sender: "assistant",
-            content: buildSideChatWelcome(student, option),
-            createdAt
-          }
-        ],
-        createdAt,
-        updatedAt: createdAt
-      };
-      setSideChats((items) => [...items, session]);
-      setActiveSideChatId(session.id);
-    }, 0);
+    setDetailStudentId(studentId);
   }
 
   function openStudentDetail(conversation: Conversation) {
@@ -536,32 +451,6 @@ async function sendSideChatMessage() {
     finally { pendingRef.current.delete(session.id); }
   }
 
-  function updateConversation(conversationId: string, patch: Partial<Conversation>) {
-    setConversations((items) => items.map((item) => (item.id === conversationId ? { ...item, ...patch } : item)));
-  }
-
-  function addMessage(message: Message, latestSummary?: string) {
-    setMessages((items) => [...items, message]);
-    updateConversation(message.conversationId, {
-      summary: latestSummary ?? message.content ?? (message.type === "image" ? "上传了一张图片" : "任务已创建"),
-      time: "刚刚"
-    });
-  }
-
-  function addAiText(conversation: Conversation, content: string) {
-    addMessage(
-      {
-        id: uid("msg"),
-        conversationId: conversation.id,
-        sender: "ai",
-        type: "text",
-        content,
-        createdAt: nowIso()
-      },
-      content
-    );
-  }
-
 
 
 
@@ -618,12 +507,8 @@ async function sendSideChatMessage() {
   async function handleSendMessage() {
     const text = input.trim();
     if ((!text && !composerAttachments.length) || sending || uploading) return;
-    if (activeConversation.kind === "assistant") {
-      addMessage({ id: uid("msg"), conversationId: activeConversation.id, sender: "teacher", type: "text", content: text, createdAt: nowIso() });
-      addAiText(activeConversation, buildAutomationAssistantReply(taskCards, conversations));
-      setInput(""); return;
-    }
-    const skill = activeSkillId || (composerAttachments.length ? "analyze_learning_evidence" : intentToSkillId(detectIntent(text) === "normal_chat" ? "learning_record" : detectIntent(text) as TaskType, activeConversation));
+    if (activeConversation.kind === "assistant") return;
+    const skill = activeSkillId || (composerAttachments.length ? "analyze_learning_evidence" : activeConversation.kind === "class" ? "class_lesson_record" : "update_learning_record");
     await createRunningSkill(skill, activeConversation, text, undefined, composerAttachments.map(a => a.id));
   }
 
@@ -652,7 +537,7 @@ async function sendSideChatMessage() {
     const record = snapshotRef.current?.records.find(r => r.id === recordId(task));
     const value = isFeedback(task) ? record?.feedback : record?.content;
     if (!value) { showToast("请等待结果生成后再复制。"); return; }
-    try { await navigator.clipboard.writeText(value); showToast("已复制，请到微信粘贴发送。"); }
+    try { await navigator.clipboard.writeText(value); if (isFeedback(task) && task.status !== "feedback_done") setTaskCards(items => items.map(item => item.id === task.id ? { ...item, status: "copied" } : item)); showToast(isFeedback(task) ? "已复制，请到微信粘贴。发送后回来标记已发。" : "正文已复制。"); }
     catch { showToast("无法访问剪贴板，请手动复制正文。"); }
   }
 
@@ -700,7 +585,12 @@ function openSkillReview(task: TaskCard) {
     if (action === "archive" || action === "add_monthly_material" || action === "add_report_material") return void archiveTask(task);
     if (action === "regenerate") return regenerateTask(task);
     if (action === "make_warmer" || action === "make_shorter") return reviseTask(task, action === "make_warmer" ? "warmer" : "shorter");
-    if (action === "generate_feedback") return void runRecordAction(task, "feedback");
+    if (action === "generate_feedback") {
+      const existing = taskById.get(`${recordId(task)}:feedback`);
+      if (existing) return openSkillReview(existing);
+      void runRecordAction(task, "feedback").then(result => { if (result) openSkillReview({ ...task, id: `${result.id}:feedback` }); });
+      return;
+    }
     if (action === "generate_next_lesson") {
       const conversation = conversations.find(c => c.id === task.conversationId);
       if (conversation) void createRunningSkill("next_lesson_plan", conversation, `根据本次记录备课：\n${task.currentOutput?.display_content || task.summary}`);
@@ -717,12 +607,7 @@ function openSkillReview(task: TaskCard) {
 
 
   function handleQuickTask(task: string) {
-    if (activeConversation.kind === "assistant") {
-      setInput(buildAutomationPromptTemplate(task));
-      setActiveSkillId(null);
-      showToast("已填入模板，可继续修改后发送");
-      return;
-    }
+    if (activeConversation.kind === "assistant") return;
 
     const skill = quickSkills.find(item => getSkillDisplayLabel(item, activeConversation) === task) ?? getSkillByTriggerLabel(task, subjectType) ?? getSkillsForSubject(subjectType).find((item) => item.label === task);
     if (!skill) {
@@ -742,16 +627,6 @@ function openSkillReview(task: TaskCard) {
       return;
     }
     showToast(`已取消「${getSkillDisplayLabel(skill, activeConversation)}」`);
-  }
-
-  function handleSmartInputAction(action: SmartInputAction) {
-    if (!input.trim() || sending) return;
-    if (action === "save_note") {
-      const text = input.trim();
-      void performBackend(() => backend("records", { contactId: activeConversation.id, kind: "record", input: text, date: new Date().toLocaleDateString("en-CA"), attachmentIds: [] }), "原文已保存，可稍后整理。").then(result => { if (result) setInput(""); });
-      return;
-    }
-    void createRunningSkill(action === "generate_feedback" ? "generate_feedback" : "update_learning_record", activeConversation, input);
   }
 
   async function handleCreate(kind: Exclude<CreationMode, null>, payload: CreationPayload) {
@@ -795,8 +670,8 @@ function openSkillReview(task: TaskCard) {
   async function handleLogin(profile: TeacherProfile, credentials: { mode: string; password: string }) {
     await backend("auth", { mode: credentials.mode, identifier: profile.contact, password: credentials.password, name: profile.nickname });
     await refreshBackend();
-    setActiveId(snapshotRef.current?.contacts[0]?.id || initialState.currentConversationId!);
-    showToast("欢迎回来");
+    setActiveId(snapshotRef.current?.contacts.find(item => item.kind === "student")?.id || snapshotRef.current?.contacts[0]?.id || initialState.currentConversationId!);
+    showToast(credentials.mode === "register" ? "账号已建立，从第一位学生开始。" : "欢迎回来");
   }
   function handlePreferences(value: UserPreferences) {
     if (value.autoArchiveLearningEvidence) { showToast("学习档案需要老师逐项确认，不能自动入档。"); return; }
@@ -824,18 +699,16 @@ function openSkillReview(task: TaskCard) {
         onOpenDrawer={openDrawer}
         onOpenSideChat={openSideChatPanel}
         onOpenStudentDetail={() => openStudentDetail(activeConversation)}
-        onOpenProfileSideChat={() => openSideChatForContext("student_profile")}
+        onOpenProfileSideChat={() => activeConversation.kind === "student" ? openStudentDetail(activeConversation) : openDrawer("profile")}
+        onOpenReport={() => setReportOpen(true)}
         onOpenMobileNavigation={() => setIsMobileNavigationOpen(true)}
       />
+      {!isAutomationAssistant ? <p className="shrink-0 border-b border-[#edf0ee] bg-[#edf8f1] px-3 py-2 text-[12px] leading-5 text-[#3d4a3d] sm:px-6"><span className="font-bold">下一步：</span>{activeConversation.kind === "class" ? "这里记录全班共同教学内容；个人表现请先选择学生再填写。" : nextClassroomStep(snapshotRef.current?.records.filter(record => record.contactId === activeConversation.id).at(-1))}</p> : null}
       <div className="xuemai-chat-bg relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="xuemai-scrollbar min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto flex w-full max-w-[820px] flex-col gap-3 px-3 pb-5 pt-4 sm:px-6">
             {displayMessages.length === 0 ? (
-              isAutomationAssistant ? (
-                <AutomationAssistantEmptyState templates={automationTemplates} onSelectTemplate={(prompt) => (setInput(prompt), showToast("已填入模板，可继续修改后发送"))} />
-              ) : (
-                <EmptyConversationState onUpload={() => fileInputRef.current?.click()} onFeedback={() => createRunningSkill("generate_feedback")} onLesson={() => createRunningSkill("next_lesson_plan")} />
-              )
+              <EmptyConversationState name={activeConversation.name} firstStudent={isAutomationAssistant} onUpload={() => fileInputRef.current?.click()} onStart={() => isAutomationAssistant ? setCreationMode("student") : document.getElementById("classroom-input")?.focus()} />
             ) : (
               displayMessages.map((item) => {
                 const task = item.taskCardId ? taskById.get(item.taskCardId) : undefined;
@@ -857,7 +730,7 @@ function openSkillReview(task: TaskCard) {
             <div ref={bottomRef} />
           </div>
         </div>
-        <Composer
+        {!isAutomationAssistant ? <Composer
           value={input}
           recordDate={isAutomationAssistant ? undefined : recordDate}
           onRecordDateChange={setRecordDate}
@@ -866,13 +739,11 @@ function openSkillReview(task: TaskCard) {
           onUpload={() => fileInputRef.current?.click()}
           onRemoveAttachment={(id) => setComposerAttachments((items) => items.filter((item) => item.id !== id))}
           onQuickTask={handleQuickTask}
-          onSmartAction={handleSmartInputAction}
           quickTasks={quickTasks}
           activeQuickTask={activeQuickTaskLabel}
           attachments={composerAttachments}
-          smartHintsEnabled={!isAutomationAssistant}
           busy={sending || uploading}
-        />
+        /> : null}
       </div>
     </>
   );
@@ -940,17 +811,16 @@ function openSkillReview(task: TaskCard) {
               <button type="button" onClick={openGlobalSearch} className="-ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#8a918d] transition hover:bg-white hover:text-[#168f42]" aria-label="打开全局搜索">
                 <Search size={16} />
               </button>
-              <input value={query} onFocus={openGlobalSearch} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#9ba19d]" placeholder="搜索学生、班级、任务记录" />
+              <input value={query} onFocus={openGlobalSearch} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#9ba19d]" placeholder="搜索学生或记录" />
             </label>
             <div className="relative">
-              <button type="button" onClick={() => setIsCreateMenuOpen((value) => !value)} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f3f5f4] text-[#3d4a3d] transition hover:bg-[#e7ece8]" aria-label="新建">
-                <Plus size={20} />
+              <button type="button" onClick={() => setIsCreateMenuOpen((value) => !value)} className="flex h-9 items-center justify-center gap-1 rounded-full bg-[#f3f5f4] px-2 text-[12px] font-bold text-[#3d4a3d] transition hover:bg-[#e7ece8]" aria-label="新建">
+                <Plus size={18} />新建
               </button>
               {isCreateMenuOpen ? (
                 <div className="absolute right-0 top-10 z-30 w-36 overflow-hidden rounded-2xl border border-[#e1e3e4] bg-white p-1 shadow-[0_18px_40px_rgba(15,23,42,0.12)]">
                   <MenuButton onClick={() => (setCreationMode("student"), setIsCreateMenuOpen(false))} icon={<UserRound size={16} />} label="新建学生" />
                   <MenuButton onClick={() => (setCreationMode("class"), setIsCreateMenuOpen(false))} icon={<UsersRound size={16} />} label="新建班级" />
-                  <MenuButton onClick={() => (fileInputRef.current?.click(), setIsCreateMenuOpen(false))} icon={<ImagePlus size={16} />} label="上传试卷" />
                 </div>
               ) : null}
             </div>
@@ -974,9 +844,9 @@ function openSkillReview(task: TaskCard) {
               <SidebarGlobalSearchResults query={query} results={globalSearchResults} onOpen={openSearchResult} onClear={() => setQuery("")} />
             ) : (
               <>
-                {assistantConversation ? <AssistantConversationEntry conversation={assistantConversation} active={activeId === assistantConversation.id} onSelect={selectConversation} /> : null}
-                <ConversationGroup title="班级群聊" items={classConversations} activeId={activeId} onSelect={selectConversation} onAvatarClick={openStudentDetail} />
-                <ConversationGroup title="最近处理学生" items={studentConversations} activeId={activeId} onSelect={selectConversation} onAvatarClick={openStudentDetail} />
+                <ConversationGroup title="学生" items={studentConversations} activeId={activeId} onSelect={selectConversation} onAvatarClick={openStudentDetail} />
+                <ConversationGroup title="班级" items={classConversations} activeId={activeId} onSelect={selectConversation} onAvatarClick={openStudentDetail} />
+
               </>
             )}
           </div>
@@ -1004,14 +874,12 @@ function openSkillReview(task: TaskCard) {
               onChange={handlePreferences}
               onClearData={handleClearLocalData}
               onLogout={handleLogout}
-              services={snapshotRef.current?.services}
-              onRefresh={refreshBackend}
               teacherName={teacher.nickname}
               teacherProfile={teacher}
               conversations={conversations}
               taskCards={taskCards}
             />
-          ) : (
+          ) : reviewTask && mode === "side-chat" ? sideWorkspace : (
             <div className={`flex min-h-0 flex-1 ${mode === "side-chat" && !isAutomationAssistant ? "flex-row" : "flex-col"}`}>
               <div className={`${mode === "side-chat" ? "hidden lg:flex" : "flex"} min-h-0 min-w-0 flex-1 flex-col`}>{chatPane}</div>
               {mode === "side-chat" && !isAutomationAssistant ? (
@@ -1041,26 +909,6 @@ function openSkillReview(task: TaskCard) {
           )}
         </section>
 
-        {mode === "chat" && !isAutomationAssistant ? (
-          <ContextPanel
-            conversation={activeConversation}
-            members={currentClassMembers}
-            messages={currentMessages}
-            taskCards={taskCards}
-            timelineRecords={timelineRecords}
-            activeSubject={activeSubjectTrack}
-            open={isContextOpen}
-            onToggle={() => setIsContextOpen((value) => !value)}
-            onSelectStudent={openStudentProfileSideChat}
-            onCloseReview={() => setReviewTaskId(null)}
-            onTaskAction={handleSkillAction}
-            onTaskEdit={handleSkillEdit}
-            onTaskReset={handleSkillReset}
-            autoArchiveLearningEvidence={preferences.autoArchiveLearningEvidence}
-            onAutoArchiveLearningEvidenceChange={(enabled) => handlePreferences({ ...preferences, autoArchiveLearningEvidence: enabled })}
-            onTaskConfirmProfileUpdates={archiveTaskWithProfileUpdates}
-          />
-        ) : null}
       </div>
 
       {reportOpen && snapshotRef.current ? <ReportDialog students={snapshotRef.current.contacts.filter(c => c.kind === "student" && (activeConversation.kind !== "class" || c.classIds.includes(activeConversation.id)))} records={snapshotRef.current.records} initialStudentId={activeConversation.kind === "student" ? activeConversation.id : undefined} onClose={() => setReportOpen(false)} onOpenStudent={id => { setReportOpen(false); selectConversation(id); }} onGenerate={async (contactId, kind, period) => {
@@ -1076,7 +924,7 @@ function openSkillReview(task: TaskCard) {
           classOptions={conversations.filter((item) => item.kind === "class").map((item) => item.name)}
           initialPayload={editingConversation ? toCreationPayload(editingConversation) : undefined}
           eyebrow={editingConversation ? (editingConversation.kind === "class" ? "修改班级" : "修改学生档案") : undefined}
-          title={editingConversation ? (editingConversation.kind === "class" ? "修改班级资料与服务规则" : "修改学生基础信息与服务规则") : undefined}
+          title={editingConversation ? (editingConversation.kind === "class" ? "修改班级资料" : "修改学生资料") : undefined}
           primaryLabel={editingConversation ? "保存修改" : undefined}
           onClose={() => {
             setCreationMode(null);
@@ -1158,43 +1006,10 @@ function normalizeTaskInputSignature(value: string) {
   return value.replace(/\s+/g, " ").trim().slice(0, 120);
 }
 
-function buildAutomationPromptTemplate(label: string) {
-  const matched = automationTemplates.find((template) => template.label === label);
-  if (matched) return matched.prompt;
-
-  if (label.includes("待办")) {
-    return "帮我整理今天最应该先处理的待办，按紧急程度分成：必须今天处理、这周处理、可以稍后处理。";
-  }
-  if (label.includes("月报")) {
-    return "帮我整理本月待生成月报的学生名单，指出每个学生还缺哪些可写入月报的学习证据。";
-  }
-  if (label.includes("备课")) {
-    return "帮我根据近期学生薄弱点生成今天的备课优先级，先列学生，再列每个学生下次课重点。";
-  }
-  if (label.includes("素材")) {
-    return "帮我整理最近可以复用的教学素材和案例，按学生反馈、月报素材、下次课练习三个用途分类。";
-  }
-  if (label.includes("续费")) {
-    return "帮我筛选需要续费跟进的学生，整理可以给家长看的过程证据和后续学习计划。";
-  }
-  if (label.includes("复盘")) {
-    return "帮我复盘最近一周的教学服务质量：哪些学生反馈及时，哪些记录没有入档，哪些家长沟通需要补充。";
-  }
-
-  return `帮我围绕「${label}」生成一个可执行的自动化任务计划，先列依据，再列处理顺序，最后给出需要老师确认的事项。`;
-}
-
-
-function buildAutomationAssistantReply(taskCards: TaskCard[], conversations: Conversation[]) {
-  const feedback = taskCards.filter(task => task.taskType === "feedback" && ["completed", "copied"].includes(task.status)).length;
-  const failed = taskCards.filter(task => task.status === "failed").length;
-  const archived = taskCards.filter(task => task.status === "archived").length;
-  const students = conversations.filter(item => item.kind === "student").length;
-  return `当前工作台有 ${students} 位学生、${feedback} 条待发送反馈、${failed} 条处理失败记录、${archived} 条已入档记录。请从左侧选择学生或班级继续处理。当前模板按需查看记录，不会创建定时任务或自动联系家长。`;
-}
-
 function getSkillDisplayLabel(skill: { id: SkillId; label: string }, conversation: Conversation) {
   if (skill.id === "monthly_report") return conversation.kind === "class" ? "学生报告" : "学习报告";
+  if (skill.id === "update_learning_record" || skill.id === "class_lesson_record") return "整理课堂记录";
+  if (skill.id === "analyze_learning_evidence") return "分析学习材料";
   return skill.label;
 }
 
@@ -1204,18 +1019,6 @@ function getSubjectType(conversation: Conversation): SkillSubjectType {
   if (conversation.kind === "assistant") return "teacher_workspace";
   return conversation.kind;
 }
-
-function intentToSkillId(intent: Exclude<ReturnType<typeof detectIntent>, "normal_chat">, conversation: Conversation): SkillId {
-  if (intent === "learning_record") return conversation.kind === "class" ? "class_lesson_record" : "update_learning_record";
-  if (intent === "learning_evidence_analysis") return "analyze_learning_evidence";
-  if (intent === "feedback") return "generate_feedback";
-  if (intent === "lesson_suggestion") return "next_lesson_plan";
-  if (intent === "monthly_report") return "monthly_report";
-  if (intent === "batch_feedback") return "batch_feedback";
-  return conversation.kind === "class" ? "class_lesson_record" : "update_learning_record";
-}
-
-
 
 function toCreationPayload(conversation: Conversation): Partial<CreationPayload> {
   return {

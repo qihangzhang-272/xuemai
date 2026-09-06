@@ -7,7 +7,7 @@ const fixture = (): Snapshot => ({
   teacher: { id: "teacher-a", name: "测试老师", identifier: "qa" },
   contacts: [{ id: "student-a", kind: "student", name: "测试学生", subject: "数学", grade: "六年级", classIds: [], createdAt: "2026-09-04T12:00:00Z" }],
   records: [], attachments: [], preferences: { subject: "数学", grade: "六年级", tone: "温和", address: "家长" },
-  services: { ai: true, documents: true, mdt: false, model: "test" },
+  services: { ai: true, documents: true, model: "test" },
 });
 const record = (patch: Partial<LearningRecord> = {}): LearningRecord => ({
   id: "record-a", contactId: "student-a", kind: "record", title: "课堂观察", input: "学生完成订正",

@@ -1,185 +1,70 @@
-import type React from "react";
-import Image from "next/image";
-import { useState } from "react";
-import {
-  AlertCircle,
-  AtSign,
-  Bell,
-  BookOpenCheck,
-  BriefcaseBusiness,
-  Building2,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  ClipboardList,
-  Clock3,
-  Database,
-  FileText,
-  GraduationCap,
-  HelpCircle,
-  KeyRound,
-  LockKeyhole,
-  LogOut,
-  MapPin,
-  MessageSquareText,
-  RotateCcw,
-  Search,
-  ShieldCheck,
-  Sparkles
-} from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Conversation, TeacherProfile, TaskCard, TimelineRecord, UserPreferences } from "./types";
-import { backend } from "./backend-adapter";
-import type { Snapshot } from "@/lib/xuemai/types";
+import {
+AlertCircle,
+AtSign,
+Bell,
+Building2,
+CheckCircle2,
+ChevronLeft,
+ChevronRight,
+Clock3,
+Database,
+FileText,
+HelpCircle,
+LockKeyhole,
+LogOut,
+MessageSquareText,
+RotateCcw,
+Search,
+ShieldCheck,
+Sparkles
+} from "lucide-react";
+import Image from "next/image";
+import type React from "react";
+import { useState } from "react";
+import type { Conversation, TaskCard, TeacherProfile, TimelineRecord, UserPreferences } from "./types";
 
 type PanelTone = "green" | "yellow" | "blue" | "red" | "gray";
 
 export function LoginScreen({ onLogin }: { onLogin: (profile: TeacherProfile, credentials: { mode: string; password: string }) => Promise<void> }) {
-  const [mode, setMode] = useState<"login" | "register" | "identity" | "profile" | "forgot">("login");
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [contact, setContact] = useState("");
-  const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [accountMode, setAccountMode] = useState("local");
+  const [nickname, setNickname] = useState("");
   const [authError, setAuthError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
-  const [role, setRole] = useState<TeacherProfile["role"]>("individual");
-  const [nickname, setNickname] = useState("");
-  const [organizationName, setOrganizationName] = useState("");
-  const [city, setCity] = useState("");
-  const [subjects, setSubjects] = useState<string[]>([]);
-  const [teachingStages, setTeachingStages] = useState<string[]>([]);
-  const [teachingModes, setTeachingModes] = useState<string[]>([]);
-  const canRegister = Boolean(contact.trim() && password.length >= 8 && password === confirmPassword);
-  const canFinishProfile = Boolean(nickname.trim() && subjects.length > 0 && teachingStages.length > 0 && teachingModes.length > 0);
-
-  async function finishLogin(nextProfile?: Partial<TeacherProfile>) {
+  async function finishLogin() {
     if (authBusy) return;
     setAuthBusy(true); setAuthError("");
-    try { await onLogin({
-      contact: contact.trim(),
-      nickname: nextProfile?.nickname ?? (nickname.trim() || "老师"),
-      role: nextProfile?.role ?? role,
-      organizationName: nextProfile?.organizationName ?? organizationName.trim(),
-      city: nextProfile?.city ?? city.trim(),
-      subjects: nextProfile?.subjects ?? subjects,
-      teachingStages: nextProfile?.teachingStages ?? teachingStages,
-      teachingModes: nextProfile?.teachingModes ?? teachingModes
-    }, { mode: mode === "login" ? accountMode : "register", password });
-    } catch (error) { setAuthError(error instanceof Error ? error.message : "登录失败"); } finally { setAuthBusy(false); }
+    try { await onLogin({ contact: contact.trim(), nickname: nickname.trim() || "老师", role: "individual", subjects: [], teachingStages: [] }, { mode: mode === "login" ? "local" : "register", password }); }
+    catch (error) { setAuthError(error instanceof Error ? error.message : "登录未完成，请重试。"); }
+    finally { setAuthBusy(false); }
   }
-
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_20%_0%,#eefbf3_0,#f6f8f6_32%,#f6f8f6_100%)] p-6 text-[#191c1d]">
-      <div className="grid w-full max-w-[1040px] items-center gap-8 lg:grid-cols-[minmax(0,1fr)_430px]">
-        <AuthIntro mode={mode} />
+  return <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_20%_0%,#eefbf3_0,#f6f8f6_32%,#f6f8f6_100%)] p-6 text-[#191c1d]">
+    <div className="grid w-full max-w-[1040px] items-center gap-8 lg:grid-cols-[minmax(0,1fr)_430px]">
+      <AuthIntro mode={mode} />
       <section className="w-full rounded-[30px] border border-white/80 bg-white p-6 shadow-[0_26px_80px_rgba(15,23,42,0.09)]">
-        {mode !== "login" ? (
-          <button type="button" onClick={() => setMode(mode === "identity" ? "register" : mode === "profile" ? "identity" : "login")} className="mb-5 flex h-9 w-9 items-center justify-center rounded-full text-[#34413a] transition hover:bg-[#f3f5f4]" aria-label="返回">
-            <ChevronLeft size={22} />
+        <AuthBrand />
+        {mode === "register" ? <AuthTitle title="创建学脉账号" subtitle="填好账号信息，就可以开始记录课堂。" /> : null}
+        <form className="mt-7 space-y-4 rounded-[24px] bg-[#f8faf8] p-4" onSubmit={event => { event.preventDefault(); void finishLogin(); }}>
+          {mode === "register" ? <AuthField label="老师称呼" value={nickname} onChange={setNickname} placeholder="例如：陈老师" /> : null}
+          <AuthField icon={<AtSign size={16} />} label="学脉账号" value={contact} onChange={setContact} placeholder="输入账号或邮箱" />
+          <AuthField icon={<LockKeyhole size={16} />} label="密码" value={password} onChange={setPassword} placeholder={mode === "register" ? "设置至少 8 位密码" : "输入密码"} type="password" />
+          {authError ? <p role="alert" className="text-[12px] font-semibold leading-5 text-[#dc2626]">{authError}</p> : null}
+          <button type="submit" disabled={authBusy || !contact.trim() || !password || (mode === "register" && (!nickname.trim() || password.length < 8))} className="flex h-11 w-full items-center justify-center rounded-[16px] bg-[#22c55e] text-sm font-bold text-white transition hover:bg-[#16a34a] disabled:cursor-not-allowed disabled:bg-[#c7cec9]">
+            {authBusy ? "正在进入…" : mode === "login" ? "登录学脉" : "创建账号并开始"}
           </button>
-        ) : null}
-
-        {mode === "login" ? (
-          <>
-            <AuthBrand />
-            <div className="mt-7 rounded-[24px] bg-[#f8faf8] p-4">
-              <div className="space-y-3">
-                <AuthField icon={<AtSign size={16} />} label="手机号 / 邮箱" value={contact} onChange={setContact} placeholder="请输入手机号或邮箱" />
-                <AuthField icon={<LockKeyhole size={16} />} label="密码" value={password} onChange={setPassword} placeholder="请输入密码" type="password" />
-              </div>
-              <button type="button" onClick={() => { setAccountMode(value => value === "local" ? "mdt" : "local"); setAuthError(""); }} className="mt-3 block w-full text-right text-[12px] font-bold text-[#16a34a]">
-                {accountMode === "local" ? "使用多维度教学助手账号" : "返回学脉账号登录"}
-              </button>
-              <button type="button" disabled={authBusy || !contact.trim() || !password} onClick={() => void finishLogin()} className="mt-5 flex h-11 w-full items-center justify-center rounded-[16px] bg-[#22c55e] text-sm font-black text-white shadow-[0_14px_26px_rgba(34,197,94,0.18)] transition hover:bg-[#16a34a]">
-                {authBusy ? "正在登录…" : accountMode === "mdt" ? "登录多维度教学助手" : "登录"}
-              </button>
-              <button type="button" onClick={() => setMode("register")} className="mt-5 flex h-10 w-full items-center justify-center rounded-[15px] bg-white text-[13px] font-bold text-[#5c665f] transition hover:bg-[#edf8f1] hover:text-[#16a34a]">
-                还没有账号？立即注册
-              </button>
-            </div>
-            <p className="mt-4 text-center text-[11px] font-semibold leading-5 text-[#9aa19d]">账号与记录保存在学脉服务中。</p>
-          </>
-        ) : null}
-
-        {mode === "register" ? (
-          <>
-            <AuthTitle title="创建账号" subtitle="开始建立你的 AI 学情追踪系统" />
-            <AuthProgress activeStep={1} />
-            <div className="mt-6 space-y-3">
-              <AuthField icon={<AtSign size={16} />} label="手机号 / 邮箱" value={contact} onChange={setContact} placeholder="请输入手机号或邮箱" />
-              <AuthField icon={<LockKeyhole size={16} />} label="设置密码" value={password} onChange={setPassword} placeholder="至少 8 位" type="password" />
-              <AuthField icon={<LockKeyhole size={16} />} label="确认密码" value={confirmPassword} onChange={setConfirmPassword} placeholder="再次输入密码" type="password" />
-            </div>
-            <AuthPrimaryButton disabled={!canRegister} onClick={() => setMode("identity")}>
-              下一步
-            </AuthPrimaryButton>
-            <AuthSecondaryButton onClick={() => setMode("login")}>已有账号，去登录</AuthSecondaryButton>
-          </>
-        ) : null}
-
-        {mode === "identity" ? (
-          <>
-            <AuthTitle title="选择你的身份" subtitle="我们会根据教学场景优化工作台" />
-            <AuthProgress activeStep={2} />
-            <div className="mt-6 space-y-3">
-              <RoleCard active={role === "individual"} icon={<GraduationCap size={20} />} title="个体老师" description="适合一对一、小班课老师和个人工作室" onClick={() => setRole("individual")} />
-              <RoleCard active={role === "organization"} icon={<Building2 size={20} />} title="机构老师" description="适合校区老师、教学负责人和教培机构" onClick={() => setRole("organization")} />
-            </div>
-            <AuthPrimaryButton onClick={() => setMode("profile")}>继续</AuthPrimaryButton>
-            <AuthSecondaryButton onClick={() => finishLogin({ nickname: "老师" })}>稍后再选</AuthSecondaryButton>
-          </>
-        ) : null}
-
-        {mode === "profile" ? (
-          <>
-            <AuthTitle title="完善老师信息" subtitle="用于生成更贴近你教学场景的提醒、反馈和月报" />
-            <AuthProgress activeStep={3} />
-            <div className="mt-6 space-y-4">
-              <AuthField icon={<GraduationCap size={16} />} label="老师昵称" value={nickname} onChange={setNickname} placeholder="例如：Eric 老师" />
-              <AuthField icon={<BriefcaseBusiness size={16} />} label={role === "organization" ? "机构 / 工作室名称" : "个人工作室名称（可选）"} value={organizationName} onChange={setOrganizationName} placeholder={role === "organization" ? "例如：知迹教育工作室" : "可不填"} />
-              <AuthField icon={<MapPin size={16} />} label="所在城市（可选）" value={city} onChange={setCity} placeholder="例如：北京" />
-              <AuthOptionGroup label="主要科目" options={["语文", "数学", "英语", "物理", "化学", "生物", "历史", "地理", "政治"]} values={subjects} onToggle={(value) => toggleAuthOption(subjects, setSubjects, value)} />
-              <AuthOptionGroup label="授课阶段" options={["小学", "初中", "高中"]} values={teachingStages} onToggle={(value) => toggleAuthOption(teachingStages, setTeachingStages, value)} />
-              <AuthOptionGroup label="教学场景" options={["一对一", "小班课", "机构班课", "线上课"]} values={teachingModes} onToggle={(value) => toggleAuthOption(teachingModes, setTeachingModes, value)} />
-            </div>
-            <AuthPrimaryButton disabled={!canFinishProfile} onClick={() => finishLogin()}>
-              进入工作台
-            </AuthPrimaryButton>
-            <AuthSecondaryButton onClick={() => finishLogin({ nickname: nickname.trim() || "老师" })}>先进入，稍后完善</AuthSecondaryButton>
-          </>
-        ) : null}
-
-        {mode === "forgot" ? (
-          <>
-            <AuthTitle title="找回密码" subtitle="输入账号后，我们将发送验证码" />
-            <div className="mt-6 space-y-3">
-              <AuthField icon={<AtSign size={16} />} label="手机号 / 邮箱" value={contact} onChange={setContact} placeholder="请输入绑定的账号" />
-              <AuthField icon={<KeyRound size={16} />} label="验证码" value={code} onChange={setCode} placeholder="6 位验证码" actionLabel="获取验证码" />
-              <AuthField icon={<LockKeyhole size={16} />} label="新密码" value={password} onChange={setPassword} placeholder="设置新密码（至少 8 位）" type="password" />
-              <AuthField icon={<LockKeyhole size={16} />} label="确认新密码" value={confirmPassword} onChange={setConfirmPassword} placeholder="再次输入新密码" type="password" />
-            </div>
-            <AuthPrimaryButton disabled={!contact.trim() || !code.trim() || password.length < 8 || password !== confirmPassword} onClick={() => setMode("login")}>
-              重置密码
-            </AuthPrimaryButton>
-            <AuthSecondaryButton onClick={() => setMode("login")}>返回登录</AuthSecondaryButton>
-          </>
-        ) : null}
-        {authError ? <p role="alert" className="mt-4 text-center text-[12px] font-semibold leading-5 text-[#dc2626]">{authError}</p> : null}
+          <button type="button" disabled={authBusy} onClick={() => { setMode(mode === "login" ? "register" : "login"); setAuthError(""); }} className="h-10 w-full rounded-[15px] text-[13px] font-semibold text-[#5c665f] hover:bg-white">
+            {mode === "login" ? "还没有账号？创建账号" : "已有账号，返回登录"}
+          </button>
+        </form>
       </section>
-      </div>
-    </main>
-  );
+    </div>
+  </main>;
 }
 
-function AuthIntro({ mode }: { mode: "login" | "register" | "identity" | "profile" | "forgot" }) {
-  const modeCopy = {
-    login: "登录后进入微信式教学工作台，学生是联系人，班级是群聊。",
-    register: "创建独立学脉账号，教学记录按老师分别保存。",
-    identity: "选择身份后，工作台会优先呈现你最常用的学生、班级和服务规则。",
-    profile: "老师资料会用于默认反馈语气、月报署名和自动化提醒。",
-    forgot: "账号问题请联系当前学脉服务的管理员。"
-  };
+function AuthIntro({ mode }: { mode: "login" | "register" }) {
+  const modeCopy = { login: "把课堂表现整理成记录，生成可以发给家长的反馈。", register: "学生、课堂记录和反馈，都在你的学脉账号中保存。" };
 
   return (
     <aside className="hidden lg:block">
@@ -189,13 +74,13 @@ function AuthIntro({ mode }: { mode: "login" | "register" | "identity" | "profil
           学脉 AI 教学工作台
         </div>
         <h1 className="mt-6 text-[46px] font-black leading-[1.08] tracking-tight text-[#161a17]">
-          建立老师账号，
+          记下这节课，
           <br />
-          再进入学生服务闭环。
+          让家长看见孩子的收获。
         </h1>
         <p className="mt-5 text-[17px] font-semibold leading-8 text-[#5f6b63]">{modeCopy[mode]}</p>
         <div className="mt-8 grid gap-3">
-          {["注册账号", "选择老师身份", "完善授课信息", "进入工作台"].map((item, index) => (
+          {["选择学生，记下课堂表现", "检查记录，生成家长反馈", "复制到微信，留下学习档案"].map((item, index) => (
             <div key={item} className="flex items-center gap-3 rounded-[18px] bg-white/80 px-4 py-3 text-sm font-black text-[#34413a]">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#dcfce7] text-xs text-[#16a34a]">{index + 1}</span>
               {item}
@@ -229,16 +114,6 @@ function AuthTitle({ title, subtitle }: { title: string; subtitle: string }) {
   );
 }
 
-function AuthProgress({ activeStep }: { activeStep: 1 | 2 | 3 }) {
-  return (
-    <div className="mt-5 grid grid-cols-3 gap-2" aria-label="注册进度">
-      {[1, 2, 3].map((step) => (
-        <span key={step} className={cn("h-1.5 rounded-full", step <= activeStep ? "bg-[#22c55e]" : "bg-[#e8ece9]")} />
-      ))}
-    </div>
-  );
-}
-
 function AuthField({ icon, label, value, onChange, placeholder, type = "text", actionLabel }: { icon?: React.ReactNode; label: string; value: string; onChange: (value: string) => void; placeholder: string; type?: string; actionLabel?: string }) {
   return (
     <label className="block">
@@ -254,59 +129,6 @@ function AuthField({ icon, label, value, onChange, placeholder, type = "text", a
       </span>
     </label>
   );
-}
-
-function RoleCard({ active, icon, title, description, onClick }: { active: boolean; icon: React.ReactNode; title: string; description: string; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} className={cn("flex w-full items-center gap-4 rounded-[22px] border p-4 text-left transition", active ? "border-[#22c55e] bg-[#eefbf3]" : "border-transparent bg-[#f8faf8] hover:bg-[#f2f7f4]")}>
-      <span className={cn("flex h-11 w-11 items-center justify-center rounded-full", active ? "bg-white text-[#16a34a]" : "bg-[#edf0ee] text-[#748077]")}>{icon}</span>
-      <span className="min-w-0 flex-1">
-        <strong className="block text-[15px] font-black text-[#191c1d]">{title}</strong>
-        <span className="mt-1 block text-[12px] font-semibold leading-5 text-[#6b746d]">{description}</span>
-      </span>
-      <span className={cn("h-5 w-5 rounded-full border-2", active ? "border-[#22c55e] bg-[#22c55e]" : "border-[#d7deda] bg-white")} />
-    </button>
-  );
-}
-
-function AuthOptionGroup({ label, options, values, onToggle }: { label: string; options: string[]; values: string[]; onToggle: (value: string) => void }) {
-  return (
-    <div>
-      <p className="text-xs font-bold text-[#6b746d]">{label}</p>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {options.map((option) => (
-          <button key={option} type="button" onClick={() => onToggle(option)} className={cn("rounded-full px-3 py-2 text-xs font-black transition", values.includes(option) ? "bg-[#22c55e] text-white" : "bg-[#f2f4f3] text-[#3d4a3d] hover:bg-[#eaf8ef]")}>
-            {option}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function AuthPrimaryButton({ children, disabled, onClick }: { children: React.ReactNode; disabled?: boolean; onClick: () => void }) {
-  return (
-    <button type="button" disabled={disabled} onClick={onClick} className="mt-6 flex h-11 w-full items-center justify-center rounded-[16px] bg-[#22c55e] text-sm font-black text-white shadow-[0_14px_26px_rgba(34,197,94,0.18)] transition hover:bg-[#16a34a] disabled:cursor-not-allowed disabled:bg-[#c7d2cc] disabled:shadow-none">
-      {children}
-    </button>
-  );
-}
-
-function AuthSecondaryButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} className="mt-3 flex h-10 w-full items-center justify-center rounded-[15px] bg-[#edf8f1] text-sm font-black text-[#16a34a] transition hover:bg-[#dff5e7]">
-      {children}
-    </button>
-  );
-}
-
-function toggleAuthOption(values: string[], setValues: (values: string[]) => void, value: string) {
-  if (values.includes(value)) {
-    if (values.length === 1) return;
-    setValues(values.filter((item) => item !== value));
-    return;
-  }
-  setValues([...values, value]);
 }
 
 export function TodosPanel({
@@ -763,8 +585,6 @@ export function SettingsPanel({
   teacherProfile,
   conversations,
   taskCards,
-  services,
-  onRefresh,
   onOpenTask
 }: {
   preferences: UserPreferences;
@@ -775,8 +595,6 @@ export function SettingsPanel({
   teacherProfile: TeacherProfile;
   conversations: Conversation[];
   taskCards: TaskCard[];
-  services?: Snapshot["services"];
-  onRefresh?: () => Promise<void>;
   onOpenTask: (task: TaskCard) => void;
 }) {
   const [view, setView] = useState<"space" | "workspace" | "notifications">("space");
@@ -786,9 +604,6 @@ export function SettingsPanel({
   const teacherLabel = formatTeacherName(teacherName);
   const organizationLabel = teacherProfile.organizationName?.trim() || (teacherProfile.role === "organization" ? "机构资料未完善" : "个人工作室");
   const roleLabel = teacherProfile.role === "organization" ? "机构老师" : "个体老师";
-  const subjectLabel = teacherProfile.subjects?.length ? teacherProfile.subjects.join(" / ") : "未选择科目";
-  const stageLabel = teacherProfile.teachingStages?.length ? teacherProfile.teachingStages.join(" / ") : "未选择阶段";
-  const modeLabel = teacherProfile.teachingModes?.length ? teacherProfile.teachingModes.join(" / ") : "未选择场景";
 
   if (view === "workspace") {
     return <WorkspaceProfileView teacherProfile={teacherProfile} studentCount={students.length} classCount={classes.length} onBack={() => setView("space")} />;
@@ -835,34 +650,21 @@ export function SettingsPanel({
 
         <main className="min-w-0 space-y-5">
           <header>
-            <p className="text-[13px] font-bold text-[#22c55e]">我的空间</p>
-            <h1 className="mt-1 text-[28px] font-bold tracking-tight text-[#191c1d]">工作室、AI 助教与通知设置</h1>
+            <h1 className="mt-1 text-[28px] font-bold tracking-tight text-[#191c1d]">账号与偏好</h1>
             <p className="mt-1.5 text-[14px] font-medium text-[#6b7280]">在这里调整反馈语气、查看账号资料和处理提醒。</p>
           </header>
 
           <SettingsGroup title="工作室与账号">
             <SettingsRow icon={<Building2 size={19} />} title="工作室资料" description="查看当前账号与教学资料" onClick={() => setView("workspace")} />
             <SettingsRow icon={<ShieldCheck size={19} />} title="账号与安全" description={`当前登录：${teacherProfile.contact}；暂不支持在此修改密码`} />
-            <SettingsRow icon={<GraduationCap size={19} />} title="老师授课信息" description={`${stageLabel} · ${subjectLabel} · ${modeLabel}`} onClick={() => setView("workspace")} />
           </SettingsGroup>
 
-          <SettingsGroup title="AI 助教">
-            <SettingsRow icon={<Sparkles size={19} />} title="反馈语气" description="使用本页的默认反馈语气选项，保存后用于新生成的家长反馈" />
-            <SettingsRow icon={<BookOpenCheck size={19} />} title="材料分析" description="上传后可补充说明，点击发送开始分析" />
-            <SettingsRow icon={<Database size={19} />} title="学生档案" description="检查每条学习记录后点击确认入档，草稿不会自动入档" />
+          <SettingsGroup title="待处理事项">
+            <SettingsRow icon={<Bell size={19} />} title="查看待处理记录" description="继续检查记录、准备反馈" onClick={() => setView("notifications")} />
           </SettingsGroup>
-
-          <SettingsGroup title="通知与数据">
-            <SettingsRow icon={<Bell size={19} />} title="通知中心" description="查看当前账号的待处理记录和已生成内容" onClick={() => setView("notifications")} />
-            <SettingsRow icon={<ClipboardList size={19} />} title="反馈模板管理" description="暂未开放自定义模板；可在反馈正文中直接编辑" />
-            <SettingsRow icon={<Database size={19} />} title="学生档案管理" description="点击左侧学生头像查看个人档案；仅收录已确认的学习记录" />
-          </SettingsGroup>
-
-          {services && onRefresh ? <SettingsGroup title="多维度教学助手"><BackendConnection connected={services.mdt} onRefresh={onRefresh} /></SettingsGroup> : null}
 
           <SettingsGroup title="帮助与支持">
-            <SettingsRow icon={<HelpCircle size={19} />} title="帮助中心" description="选择学生 → 记录课堂表现 → 检查结果 → 生成反馈或确认入档" />
-            <SettingsRow icon={<MessageSquareText size={19} />} title="意见反馈" description="暂未提供在线提交入口，可将问题截图交给项目负责人" />
+            <SettingsRow icon={<HelpCircle size={19} />} title="帮助中心" description="选择学生 → 记录课堂 → 检查并入档 → 生成家长反馈" />
             <div className="flex flex-wrap gap-2 px-1 pt-2">
               <button type="button" onClick={onClearData} className="inline-flex h-9 items-center gap-2 rounded-full bg-[#f3f4f5] px-4 text-sm font-bold text-[#3d4a3d] transition hover:bg-[#e8ece9]">
                 <RotateCcw size={15} />
@@ -989,34 +791,6 @@ function SettingsRow({ icon, title, description, onClick }: { icon: React.ReactN
     </Tag>
   );
 }
-
-function BackendConnection({ connected, onRefresh }: { connected: boolean; onRefresh: () => Promise<void> }) {
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
-  const [classes, setClasses] = useState<{ classId: string; name: string; _count: { students: number } }[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  async function perform(work: () => Promise<void>) {
-    setBusy(true); setMessage("");
-    try { await work(); await onRefresh(); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "操作未完成，请重试"); }
-    finally { setBusy(false); }
-  }
-  return <div className="space-y-3 px-1">
-    <p className="text-[13px] font-semibold leading-6 text-[#6b746d]">{connected ? "教师账号已连接，可读取班级并导入学脉。" : "使用已有教师账号，导入班级与学生。"}</p>
-    {!connected ? <>
-      <AuthField label="教师账号" value={identifier} onChange={setIdentifier} placeholder="多维度教学助手账号或邮箱" />
-      <AuthField label="教师密码" value={password} onChange={setPassword} placeholder="请输入密码" type="password" />
-      <AuthPrimaryButton disabled={busy || !identifier || !password} onClick={() => void perform(async () => { await backend("mdt", { action: "connect", identifier, password }); setPassword(""); setMessage("教师账号已连接"); })}>连接教师账号</AuthPrimaryButton>
-    </> : <AuthPrimaryButton disabled={busy} onClick={() => void perform(async () => { const result = await backend<{ classes: typeof classes }>("mdt"); setClasses(result.classes); setMessage(result.classes.length ? "" : "这个账号暂无班级"); })}>{busy ? "正在读取…" : "读取班级列表"}</AuthPrimaryButton>}
-    {classes.map(item => <div key={item.classId} className="flex items-center gap-3 rounded-[14px] bg-[#f8faf9] px-3 py-3">
-      <span className="min-w-0 flex-1 text-[13px] font-bold text-[#191c1d]">{item.name}<small className="mt-1 block text-[11px] font-medium text-[#6b746d]">{item._count.students} 位学生</small></span>
-      <button type="button" disabled={busy} onClick={() => void perform(async () => { await backend("mdt", { action: "import", classId: String(item.classId) }); setMessage("班级与学生已导入"); })} className="h-8 rounded-full bg-[#dcfce7] px-3 text-xs font-bold text-[#15803d]">导入</button>
-    </div>)}
-    {message ? <p role="status" className="text-[12px] font-semibold leading-5 text-[#6b746d]">{message}</p> : null}
-  </div>;
-}
-
 
 function MiniStat({ label, value }: { label: string; value: number | string }) {
   return (

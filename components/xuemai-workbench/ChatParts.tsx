@@ -1,14 +1,13 @@
-import Image from "next/image";
-import type React from "react";
-import { TeachingContent } from "./TeachingContent";
-import { useEffect, useRef, useState } from "react";
-import { Bell, BookOpenCheck, CalendarClock, Check, ChevronRight, Clock3, FileImage, ImagePlus, Info, Menu, MessageSquareText, Paperclip, Plus, RotateCcw, Search, Send, Sparkles, User, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BookOpenCheck, Check, ChevronRight, FileImage, ImagePlus, Menu, Paperclip, Search, Send, Sparkles, UsersRound } from "lucide-react";
+import Image from "next/image";
+import { useEffect, useRef } from "react";
 import { ActionButton, IconButton } from "./shared";
 import { SkillCard } from "./SkillCard";
 import { cleanSubjectPlaceholderText } from "./subject-utils";
+import { TeachingContent } from "./TeachingContent";
 import { formatChatTimestamp, formatFullTimestamp } from "./time-format";
-import type { ActiveDrawer, Conversation, Message, SkillAction, SmartInputAction, TaskCard } from "./types";
+import type { ActiveDrawer, Conversation, Message, SkillAction, TaskCard } from "./types";
 
 export function ChatHeader({
   conversation,
@@ -17,9 +16,9 @@ export function ChatHeader({
   activeSubject,
   onSubjectChange,
   onOpenDrawer,
-  onOpenSideChat,
   onOpenStudentDetail,
   onOpenProfileSideChat,
+  onOpenReport,
   onOpenMobileNavigation
 }: {
   conversation: Conversation;
@@ -31,6 +30,7 @@ export function ChatHeader({
   onOpenSideChat: () => void;
   onOpenStudentDetail?: () => void;
   onOpenProfileSideChat?: () => void;
+  onOpenReport?: () => void;
   onOpenMobileNavigation?: () => void;
 }) {
   const isAssistant = conversation.kind === "assistant";
@@ -39,8 +39,8 @@ export function ChatHeader({
   const showSubjectTabs = conversation.kind === "student" && subjectOptions.length > 1 && Boolean(activeSubject && onSubjectChange);
 
   return (
-    <header className={cn("flex shrink-0 items-center justify-between border-b border-[#edf0ee] bg-white/96 px-2.5 sm:px-6", showSubjectTabs ? "h-[84px] sm:h-[70px]" : "h-[56px]")}>
-      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+    <header className={cn("flex shrink-0 flex-wrap items-center justify-between gap-1 border-b border-[#edf0ee] bg-white/96 px-2.5 py-2 sm:flex-nowrap sm:px-6", showSubjectTabs ? "min-h-[84px] sm:min-h-[70px]" : "min-h-[56px]")}>
+      <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1 sm:gap-3">
         {onOpenMobileNavigation ? (
           <IconButton label="打开会话列表" onClick={onOpenMobileNavigation} className="lg:hidden">
             <Menu size={20} />
@@ -60,7 +60,7 @@ export function ChatHeader({
           {conversation.attention ? <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#ff4d4f]" /> : null}
         </button>
         <div className="min-w-0">
-          <h1 className="truncate text-[15px] font-bold tracking-tight text-[#191c1d]">{conversation.name}</h1>
+          <h1 className="break-words text-[15px] font-bold tracking-tight text-[#191c1d]">{isAssistant ? "学脉" : conversation.name}</h1>
           <p className="mt-0.5 truncate text-[11px] font-medium text-[#6b746d]">{summary}</p>
           {showSubjectTabs ? (
             <div className="mt-1 flex max-w-[460px] items-center gap-1.5 overflow-x-auto">
@@ -84,90 +84,29 @@ export function ChatHeader({
           ) : null}
         </div>
       </div>
-      <div className="flex items-center gap-1.5 text-[#3d4a3d]">
-        {isAssistant ? null : (
-          <IconButton label="打开侧边聊天" onClick={onOpenSideChat} className="bg-[#f2f6f3] text-[#3d4a3d] hover:bg-[#eaf8ef] hover:text-[#006e2f]">
-            <MessageSquareText size={18} />
-          </IconButton>
-        )}
+      <div className="ml-auto flex shrink-0 items-center gap-1.5 text-[#3d4a3d]">
         <IconButton label="搜索记录" onClick={() => onOpenDrawer("search")}>
           <Search size={18} />
         </IconButton>
         {isAssistant ? null : (
-          <IconButton label={conversation.kind === "class" ? "班级资料" : "学生详情"} onClick={openProfileContext} className="bg-[#f2f6f3] text-[#3d4a3d] hover:bg-[#eaf8ef] hover:text-[#006e2f]">
-            {conversation.kind === "class" ? <UsersRound size={18} /> : <User size={18} />}
-          </IconButton>
+          <button type="button" onClick={openProfileContext} className="min-h-9 shrink-0 rounded-full bg-[#f2f6f3] px-2.5 text-[12px] font-bold hover:bg-[#eaf8ef]">{conversation.kind === "class" ? "班级资料" : "学生档案"}</button>
         )}
+        {!isAssistant && onOpenReport ? <button type="button" onClick={onOpenReport} className="min-h-9 shrink-0 rounded-full bg-[#f2f6f3] px-2.5 text-[12px] font-bold hover:bg-[#eaf8ef]">学习报告</button> : null}
       </div>
     </header>
   );
 }
 
-export type AutomationTemplate = {
-  label: string;
-  prompt: string;
-  description: string;
-};
-
-export function AutomationAssistantEmptyState({
-  templates,
-  onSelectTemplate
-}: {
-  templates: AutomationTemplate[];
-  onSelectTemplate: (prompt: string) => void;
-}) {
-  return (
-    <div className="flex min-h-[calc(100vh-196px)] flex-col px-2 py-5">
-      <div className="max-w-[620px]">
-        <h2 className="text-[32px] font-semibold tracking-tight text-[#191c1d]">自动化</h2>
-        <p className="mt-2 text-[15px] font-medium text-[#7a817d]">
-          按计划或按需运行教学服务任务。选择模板后会先填入输入框，你可以改完再发送。
-        </p>
-      </div>
-
-      <div className="flex flex-1 items-center justify-center">
-        <div className="relative flex h-[320px] w-[320px] items-center justify-center rounded-full border-[32px] border-[#1f2327]/42 text-[#1f2327]/42">
-          <Clock3 size={160} strokeWidth={1.5} />
-          <div className="absolute -bottom-7 left-1/2 w-[520px] -translate-x-1/2 text-center">
-            <h3 className="text-[18px] font-bold text-[#191c1d]">创建第一个自动化</h3>
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              {templates.map((template) => (
-                <button
-                  key={template.label}
-                  type="button"
-                  onClick={() => onSelectTemplate(template.prompt)}
-                  className="inline-flex h-9 items-center gap-2 rounded-[12px] border border-[#e3e6e4] bg-white/88 px-4 text-[13px] font-bold text-[#2f3832] transition hover:bg-[#f4f7f5]"
-                  title={template.description}
-                >
-                  {template.label === "每日简报" ? <Bell size={16} /> : template.label === "每周回顾" ? <CalendarClock size={16} /> : <Search size={16} />}
-                  {template.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+export function EmptyConversationState({ name, onUpload, onStart, firstStudent = false }: { name: string; onUpload: () => void; onStart: () => void; firstStudent?: boolean }) {
+  return <div className="mx-auto mt-12 w-full max-w-[420px] rounded-[18px] bg-white/92 p-4 text-center">
+    <BookOpenCheck className="mx-auto text-[#22c55e]" size={24} />
+    <h2 className="mt-3 text-xl font-bold text-[#191c1d]">{firstStudent ? "从第一位学生开始" : "记下" + name + "的这节课"}</h2>
+    <p className="mt-2 text-[13px] font-medium leading-6 text-[#3d4a3d]">{firstStudent ? "建立学生档案后，就能记录课堂表现、准备家长反馈。" : "写下学了什么、学生怎样完成。学脉帮你整理，检查后就能生成家长反馈。"}</p>
+    <div className="mt-4 flex flex-wrap justify-center gap-2">
+      <ActionButton active onClick={onStart}>{firstStudent ? "建立第一位学生档案" : "开始记录课堂"}</ActionButton>
+      {!firstStudent ? <ActionButton onClick={onUpload}>添加学习材料</ActionButton> : null}
     </div>
-  );
-}
-
-export function EmptyConversationState({ onUpload, onFeedback, onLesson }: { onUpload: () => void; onFeedback: () => void; onLesson: () => void }) {
-  return (
-    <div className="mx-auto mt-12 w-full max-w-[420px] rounded-[18px] bg-white/92 p-4 text-center">
-      <Sparkles className="mx-auto text-[#22c55e]" size={24} />
-      <h2 className="mt-3 text-xl font-bold text-[#191c1d]">还没有记录</h2>
-      <p className="mt-1.5 text-[13px] font-medium leading-5 text-[#3d4a3d]">你可以上传试卷、输入要求，或点击下方快捷任务开始。</p>
-      <div className="mt-4 flex flex-wrap justify-center gap-2">
-        <ActionButton onClick={onUpload} active>
-          上传试卷
-        </ActionButton>
-        <ActionButton onClick={onFeedback} muted>
-          生成微信反馈
-        </ActionButton>
-        <ActionButton onClick={onLesson}>下次课建议</ActionButton>
-      </div>
-    </div>
-  );
+  </div>;
 }
 
 export function MessageRow({
@@ -314,115 +253,45 @@ export function ConfirmTaskCard({ onCancel, onStart, onRemember }: { onCancel: (
   );
 }
 
-export function Composer({
-  value,
-  onChange,
-  onSend,
-  onUpload,
-  onRemoveAttachment,
-  onQuickTask,
-  onSmartAction,
-  quickTasks,
-  activeQuickTask,
-  attachments,
-  smartHintsEnabled,
-  busy = false,
-  recordDate,
-  onRecordDateChange
-}: {
+export function Composer({ value, onChange, onSend, onUpload, onRemoveAttachment, onQuickTask, quickTasks, activeQuickTask, attachments, busy = false, recordDate, onRecordDateChange }: {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
   onUpload: () => void;
   onRemoveAttachment: (id: string) => void;
   onQuickTask: (task: string) => void;
-  onSmartAction: (action: SmartInputAction) => void;
   quickTasks: string[];
   activeQuickTask?: string;
   attachments: ComposerAttachment[];
-  smartHintsEnabled?: boolean;
   busy?: boolean;
   recordDate?: string;
   onRecordDateChange?: (value: string) => void;
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => { const element = inputRef.current; if (element) { element.style.height = "auto"; element.style.height = `${Math.min(element.scrollHeight, 144)}px`; } }, [value]);
-  const insight = smartHintsEnabled === false || activeQuickTask ? null : detectInputInsight(value);
-  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
-  const materialSkill = quickTasks.find((task) => task.includes("分析") || task.includes("试卷") || task.includes("材料"));
-  const recordSkill = quickTasks.find((task) => task.includes("记录") || task.includes("班课"));
-
-  function selectQuickTask(task?: string) {
-    if (!task) return;
-    onQuickTask(task);
-    setAttachmentMenuOpen(false);
-  }
-
-  function openUploadPicker() {
-    setAttachmentMenuOpen(false);
-    onUpload();
-  }
-
-  return (
-    <div className="shrink-0 bg-gradient-to-t from-[#f7f8f7] via-[#f7f8f7]/96 to-[#f7f8f7]/60 px-3 pb-3 pt-2 sm:px-6 sm:pb-4">
-      <div className="mx-auto w-full max-w-[820px]">
-        <div className="xuemai-scrollbar mb-2 flex gap-1.5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
-          {recordDate !== undefined ? <label className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-[#5c665f]">记录日期<input aria-label="记录日期" type="date" required max={new Date().toLocaleDateString("en-CA")} value={recordDate} onChange={event => onRecordDateChange?.(event.target.value)} className="min-w-0 rounded-full border border-[#e3e6e4] bg-white px-2 py-1" /></label> : null}
-          {quickTasks.map((task) => (
-            <button key={task} type="button" aria-pressed={activeQuickTask === task} onClick={() => onQuickTask(task)} className={cn("inline-flex h-11 shrink-0 items-center rounded-full border px-3.5 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#22c55e]/35 sm:h-8", activeQuickTask === task ? "border-[#22c55e] bg-[#dcfce7] text-[#15803d]" : "border-[#e3e6e4] bg-white/92 text-[#5c665f] hover:border-[#caead6] hover:bg-[#edf8f1]")}>
-              {task}
-            </button>
-          ))}
-        </div>
-        {insight ? <SmartInputHint insight={insight} onAction={onSmartAction} /> : null}
-        <div className="relative rounded-[24px] border border-[#e5e8e6] bg-white px-3.5 py-2 shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
-          {attachmentMenuOpen ? (
-            <div className="absolute bottom-[58px] left-3 z-30 w-56 overflow-hidden rounded-[16px] border border-[#e3e6e4] bg-white p-1.5 shadow-[0_16px_36px_rgba(15,23,42,0.12)]">
-              <AttachmentMenuItem icon={<ImagePlus size={17} />} title="上传图片/学习材料" subtitle="图片、PDF、Word、PPT 或文本" onClick={openUploadPicker} />
-              {materialSkill ? <AttachmentMenuItem icon={<BookOpenCheck size={17} />} title="分析学习材料" subtitle="选择后继续输入或上传" onClick={() => selectQuickTask(materialSkill)} /> : null}
-              {recordSkill ? <AttachmentMenuItem icon={<Paperclip size={17} />} title="课堂记录草稿" subtitle="把输入整理成可入档记录" onClick={() => selectQuickTask(recordSkill)} /> : null}
-            </div>
-          ) : null}
-          {attachments.length > 0 ? (
-            <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-              {attachments.map((attachment) => (
-                <ComposerAttachmentPreview key={attachment.id} attachment={attachment} onRemove={() => onRemoveAttachment(attachment.id)} />
-              ))}
-            </div>
-          ) : null}
-          <div className="flex min-h-[38px] items-end gap-2">
-            <IconButton label="添加" onClick={() => setAttachmentMenuOpen((open) => !open)} className={attachmentMenuOpen ? "bg-[#f3f4f5]" : undefined}>
-              <Plus size={22} />
-            </IconButton>
-            <textarea
-              ref={inputRef}
-              value={value}
-              rows={1}
-              aria-label="消息输入"
-              onChange={(event) => onChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !busy) {
-                  event.preventDefault();
-                  onSend();
-                }
-              }}
-              placeholder={attachments.length > 0 ? "补充说明，或直接发送学习材料..." : activeQuickTask ? `输入内容后使用「${activeQuickTask}」处理...` : "记下这节课的内容和学生表现，或添加学习材料…"}
-              className="max-h-36 min-h-9 min-w-0 flex-1 resize-none bg-transparent py-2 text-[13px] font-medium leading-5 text-[#191c1d] outline-none placeholder:text-[#a4aba6]"
-            />
-            <button
-              type="button"
-              onClick={onSend}
-              disabled={busy || (!value.trim() && attachments.length === 0)}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#22c55e] text-white shadow-[0_10px_24px_rgba(34,197,94,0.2)] transition hover:bg-[#16a34a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#22c55e]/35 disabled:cursor-not-allowed disabled:bg-[#c7cec9] disabled:shadow-none sm:h-9 sm:w-9"
-              aria-label={busy ? "正在处理" : "发送"}
-            >
-              <Send size={18} />
-            </button>
-          </div>
+  useEffect(() => { const element = inputRef.current; if (element) { element.style.height = "auto"; element.style.height = Math.min(element.scrollHeight, 144) + "px"; } }, [value]);
+  const submitLabel = busy ? "正在整理…" : activeQuickTask || (attachments.length ? "分析材料" : "整理记录");
+  return <div className="shrink-0 bg-gradient-to-t from-[#f7f8f7] via-[#f7f8f7]/96 to-[#f7f8f7]/60 px-3 pb-3 pt-2 sm:px-6 sm:pb-4">
+    <div className="mx-auto w-full max-w-[820px]">
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-2 text-[12px] font-semibold text-[#5c665f]">
+        <label className="flex min-h-8 items-center gap-2">课堂日期<input aria-label="记录日期" type="date" required max={new Date().toLocaleDateString("en-CA")} value={recordDate} onChange={event => onRecordDateChange?.(event.target.value)} className="min-w-0 rounded-full border border-[#e3e6e4] bg-white px-2 py-1" /></label>
+        {quickTasks.length ? <details className="max-w-full">
+          <summary className="cursor-pointer py-2">{activeQuickTask ? "当前：" + activeQuickTask : "更多教学工具"}</summary>
+          <div className="flex max-w-[420px] flex-wrap gap-2 py-2">{quickTasks.map(task => <button key={task} type="button" aria-pressed={activeQuickTask === task} onClick={() => onQuickTask(task)} className={cn("rounded-full border px-3 py-2", activeQuickTask === task ? "border-[#22c55e] bg-[#dcfce7] text-[#15803d]" : "border-[#e3e6e4] bg-white")}>{task}</button>)}</div>
+        </details> : null}
+      </div>
+      <div className="relative rounded-[24px] border border-[#e5e8e6] bg-white px-3.5 py-2 shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
+        {attachments.length > 0 ? <div className="mb-2 flex gap-2 overflow-x-auto pb-1">{attachments.map(attachment => <ComposerAttachmentPreview key={attachment.id} attachment={attachment} onRemove={() => onRemoveAttachment(attachment.id)} />)}</div> : null}
+        <label htmlFor="classroom-input" className="sr-only">课堂内容与学生表现</label>
+        <textarea ref={inputRef} id="classroom-input" value={value} rows={2} aria-label="消息输入" onChange={event => onChange(event.target.value)} onKeyDown={event => {
+          if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !busy) { event.preventDefault(); onSend(); }
+        }} placeholder={attachments.length ? "可补充学生作答、订正或老师观察到的表现…" : activeQuickTask ? "填写" + activeQuickTask + "需要的内容…" : "例如：今天学习分数约分，提醒后能独立订正，下次课留意是否主动检查。"} className="block max-h-36 min-h-12 w-full resize-none bg-transparent py-2 text-[13px] font-medium leading-6 text-[#191c1d] outline-none placeholder:text-[#6b746d]" />
+        <div className="flex items-center justify-between gap-2">
+          <button type="button" disabled={busy} onClick={onUpload} className="inline-flex min-h-9 items-center gap-1.5 text-[12px] font-semibold text-[#5c665f] disabled:opacity-50"><Paperclip size={17} />添加材料</button>
+          <button type="button" onClick={onSend} disabled={busy || (!value.trim() && !attachments.length)} className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-[#22c55e] px-3 text-[12px] font-bold text-white transition hover:bg-[#16a34a] disabled:cursor-not-allowed disabled:bg-[#c7cec9]" aria-label={submitLabel}><Send size={15} />{submitLabel}</button>
         </div>
       </div>
     </div>
-  );
+  </div>;
 }
 
 export type ComposerAttachment = {
@@ -440,62 +309,4 @@ function ComposerAttachmentPreview({ attachment, onRemove }: { attachment: Compo
       </button>
     </div>
   );
-}
-
-function AttachmentMenuItem({
-  icon,
-  title,
-  subtitle,
-  onClick
-}: {
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" onClick={onClick} className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left transition hover:bg-[#f3f4f5]">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#f3f4f5] text-[#3d4a3d]">{icon}</span>
-      <span className="min-w-0">
-        <span className="block text-[13px] font-bold text-[#191c1d]">{title}</span>
-        <span className="mt-0.5 block truncate text-[11px] font-medium text-[#8a948d]">{subtitle}</span>
-      </span>
-    </button>
-  );
-}
-
-function SmartInputHint({
-  insight,
-  onAction
-}: {
-  insight: { label: string; icon: React.ReactNode };
-  onAction: (action: SmartInputAction) => void;
-}) {
-  return (
-    <div className="mb-2 flex flex-wrap items-center gap-2 rounded-[16px] bg-white/88 px-3 py-2 text-xs">
-      <span className="flex items-center gap-1.5 font-bold text-[#15803d]">
-        {insight.icon}
-        检测到这可能是一条{insight.label}
-      </span>
-      <button type="button" onClick={() => onAction("save_learning_record")} className="rounded-full bg-[#dcfce7] px-2.5 py-1 font-bold text-[#15803d] transition hover:bg-[#caead6]">
-        整理为学习记录
-      </button>
-      <button type="button" onClick={() => onAction("generate_feedback")} className="rounded-full bg-[#22c55e] px-2.5 py-1 font-bold text-white transition hover:bg-[#16a34a]">
-        生成家长反馈
-      </button>
-      <button type="button" onClick={() => onAction("save_note")} className="rounded-full border border-[#bccbb9] px-2.5 py-1 font-bold text-[#3d4a3d] transition hover:bg-[#f3f4f5]">
-        仅保存备注
-      </button>
-    </div>
-  );
-}
-
-function detectInputInsight(value: string) {
-  const text = value.trim();
-  if (text.length < 8) return null;
-  if (text.includes("家长") || text.includes("微信") || text.includes("反馈")) return { label: "家长沟通", icon: <MessageSquareText size={13} /> };
-  if (text.includes("错题") || text.includes("试卷") || text.includes("卷子") || text.includes("作业") || text.includes("作文") || text.includes("阅读") || text.includes("口语") || text.includes("实验") || text.includes("作品")) return { label: "学习材料", icon: <BookOpenCheck size={13} /> };
-  if (text.includes("月报") || text.includes("本月") || text.includes("总结")) return { label: "月报素材", icon: <Info size={13} /> };
-  if (text.includes("课堂") || text.includes("今天") || text.includes("上课") || text.includes("课后")) return { label: "课堂记录", icon: <Sparkles size={13} /> };
-  return { label: "普通备注", icon: <RotateCcw size={13} /> };
 }

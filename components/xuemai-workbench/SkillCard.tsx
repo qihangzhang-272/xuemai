@@ -1,14 +1,13 @@
-import { TeachingContent } from "./TeachingContent";
-import { useEffect, useState } from "react";
-import { Archive, CheckCircle2, Copy, PencilLine, RotateCcw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Conversation, SkillAction, TaskCard } from "./types";
-import { crossSubjectLabel, normalizeSubjectText } from "./subject-utils";
-import { defaultSkillCardDisclosureState, getSkillCardActionPriority, getSkillCardVersionMeta, getTaskCardStatusCopy, isPrimarySkillCardAction, shouldMinimizeArchivedSkillCard } from "./skill-card-version";
-import { skillActionLabels } from "@/src/skills/actions";
 import { getSkillById } from "@/src/skills/registry";
 import type { SkillActionId } from "@/src/skills/types";
+import { Archive, CheckCircle2, Copy, PencilLine, RotateCcw, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { defaultSkillCardDisclosureState, getSkillCardActionPriority, getSkillCardVersionMeta, getTaskActionLabel, getTaskCardStatusCopy, isPrimarySkillCardAction } from "./skill-card-version";
+import { crossSubjectLabel, normalizeSubjectText } from "./subject-utils";
+import { TeachingContent } from "./TeachingContent";
 import { formatChatTimestamp, formatFullTimestamp } from "./time-format";
+import type { Conversation, SkillAction, TaskCard } from "./types";
 
 type SkillCardProps = {
   task: TaskCard;
@@ -24,19 +23,19 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
   const version = getSkillCardVersionMeta(task);
   const statusCopy = getTaskCardStatusCopy(task.status, task);
   const fieldValue = normalizeVisibleCardText(version.field.value);
-  const preview = normalizeVisibleCardText(version.currentText || getPreview(task));
-  const archivedPreview = normalizeVisibleCardText(version.archivedText || preview);
+  const preview = normalizeVisibleCardText((task.status === "archived" ? version.archivedText : version.currentText) || getPreview(task));
   const titleText = getSkillCardTitle(conversation, task, meta.title);
   const subjectLabel = getVisibleTaskSubject(task, conversation);
   const reviewLabel = task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis" ? "查看详细报告" : task.skillId === "monthly_report" || task.taskType === "monthly_report" ? "查看报告" : "查看详情";
   const timeLabel = formatChatTimestamp(task.createdAt);
   const fullTimeLabel = formatFullTimestamp(task.createdAt);
-  const minimized = shouldMinimizeArchivedSkillCard(task.status);
   const actions = getActions(task)
     .map((action) => normalizeChatCardAction(task, action))
     .filter((action) => shouldShowActionInChatCard(action.value))
     .filter((action) => shouldShowActionForStatus(task, action.value));
-  const primaryActions = actions.sort((left, right) => getSkillCardActionPriority(task, left.value) - getSkillCardActionPriority(task, right.value));
+  const sortedActions = actions.sort((left, right) => getSkillCardActionPriority(task, left.value) - getSkillCardActionPriority(task, right.value));
+  const primaryActions = sortedActions.slice(0, 1);
+  const moreActions = sortedActions.slice(1);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState(fieldValue);
   const [showEditor, setShowEditor] = useState<boolean>(defaultSkillCardDisclosureState.showEditor);
@@ -61,10 +60,6 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
     setShowEditor(false);
   }
 
-  if (minimized) {
-    return <ArchivedSkillCard createdAt={task.createdAt} fullTimeLabel={fullTimeLabel} onReview={() => onReview?.(task)} preview={archivedPreview} statusLabel={statusCopy.label} timeLabel={timeLabel} title={titleText} />;
-  }
-
   return (
     <article
       className={cn(
@@ -74,7 +69,7 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
     >
       <div className="flex items-center gap-2 pb-2">
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-sm font-bold tracking-tight text-[#191c1d]">{titleText}</h2>
+          <h2 className="break-words text-sm font-bold tracking-tight text-[#191c1d]">{titleText}</h2>
           <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-[#6b746d]">
             {subjectLabel ? <span className="shrink-0 rounded-full bg-[#edf8f1] px-1.5 py-0.5 text-[10px] font-black text-[#14883b]">{subjectLabel}</span> : null}
             <time className="shrink-0" dateTime={task.createdAt} title={fullTimeLabel}>{timeLabel}</time>
@@ -104,10 +99,10 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
               aria-label="编辑结果正文"
               disabled={!canEdit || saving}
               onChange={(event) => setDraft(event.target.value)}
-              className="mt-2.5 min-h-[88px] w-full resize-none overflow-hidden rounded-[12px] border border-[#caead6] bg-[#fbfffd] px-3 py-2.5 text-[13px] font-semibold leading-5 text-[#26312a] outline-none transition focus:border-[#9bd9ad] disabled:bg-[#f3f4f5] disabled:text-[#6b746d]"
+              className="mt-2.5 min-h-[160px] w-full resize-y rounded-[12px] border border-[#caead6] bg-[#fbfffd] px-3 py-2.5 text-[13px] font-semibold leading-5 text-[#26312a] outline-none transition focus:border-[#9bd9ad] disabled:bg-[#f3f4f5] disabled:text-[#6b746d]"
             />
           ) : (
-            <TeachingContent text={preview} className="mt-2.5 max-h-48 overflow-y-auto text-[13px] font-semibold leading-5 text-[#3d4a3d]" />
+            <TeachingContent text={preview} className="mt-2.5 text-[13px] font-medium leading-6 text-[#3d4a3d]" />
           )}
           {task.status === "failed" ? <p className="mt-1 text-[12px] font-semibold leading-5 text-[#b91c1c]">这次未能完成，原始材料已保留。请点击重新生成。</p> : null}
           {version.isEdited ? <p className="mt-1 text-[11px] font-semibold text-[#c2410c]">{version.editLabel}</p> : null}
@@ -117,10 +112,10 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
               <button
                 key={action.value}
                 type="button"
-                disabled={hasDraftChange || saving}
+                disabled={showEditor || saving}
                 onClick={() => onAction(task, action.value)}
                 className={cn(
-                  "inline-flex h-8 items-center gap-1 rounded-full px-3 text-[12px] font-bold transition",
+                  "inline-flex min-h-9 items-center gap-1 rounded-full px-3 text-[12px] font-bold transition disabled:opacity-40",
                   action.primary
                     ? "bg-[#22c55e] text-white shadow-[0_8px_18px_rgba(34,197,94,0.16)] hover:bg-[#16a34a]"
                     : action.soft
@@ -132,48 +127,17 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
                 {action.label}
               </button>
             ))}
-            <button type="button" disabled={saving} onClick={canEdit ? handleEditorToggle : () => onReview?.(task)} className={cn("inline-flex h-8 items-center gap-1 rounded-full border px-3 text-[12px] font-bold transition", showEditor && hasDraftChange ? "border-[#22c55e] bg-[#22c55e] text-white hover:bg-[#16a34a]" : "border-[#bccbb9] bg-white text-[#3d4a3d] hover:bg-[#f3f4f5]")}>
+            {canEdit ? <button type="button" disabled={saving} onClick={handleEditorToggle} className={cn("inline-flex h-8 items-center gap-1 rounded-full border px-3 text-[12px] font-bold transition", showEditor && hasDraftChange ? "border-[#22c55e] bg-[#22c55e] text-white hover:bg-[#16a34a]" : "border-[#bccbb9] bg-white text-[#3d4a3d] hover:bg-[#f3f4f5]")}>
               <PencilLine size={13} />
-              {saving ? "正在保存…" : !canEdit ? "查看正文" : showEditor ? (hasDraftChange ? "保存编辑" : "收起编辑") : "编辑当前版"}
-            </button>
+              {saving ? "正在保存…" : showEditor ? (hasDraftChange ? "保存编辑" : "收起编辑") : "修改正文"}
+            </button> : null}
+            {moreActions.length ? <details className="basis-full text-[12px] text-[#5c665f]">
+              <summary className="w-fit cursor-pointer py-2 font-semibold">更多操作</summary>
+              <div className="flex flex-wrap gap-2 pb-1">{moreActions.map(action => <button key={action.value} type="button" disabled={hasDraftChange || saving} onClick={() => onAction(task, action.value)} className="rounded-full border border-[#bccbb9] bg-white px-3 py-2 font-semibold disabled:opacity-40">{action.label}</button>)}</div>
+            </details> : null}
           </div>
         </>
       )}
-    </article>
-  );
-}
-
-function ArchivedSkillCard({
-  createdAt,
-  fullTimeLabel,
-  onReview,
-  preview,
-  statusLabel,
-  timeLabel,
-  title
-}: {
-  createdAt: string;
-  fullTimeLabel: string;
-  onReview?: () => void;
-  preview: string;
-  statusLabel: string;
-  timeLabel: string;
-  title: string;
-}) {
-  return (
-    <article className="w-fit max-w-[380px] cursor-pointer rounded-[14px] bg-white px-3 py-2 transition-colors hover:bg-[#f3f4f5]">
-      <button type="button" onClick={onReview} className="flex w-full items-center gap-2 text-left">
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-[13px] font-bold text-[#191c1d]">
-            {title}
-            <time dateTime={createdAt} title={fullTimeLabel} className="ml-2 text-[11px] font-semibold text-[#8a948d]">
-              {timeLabel}
-            </time>
-          </h2>
-          <TeachingContent text={preview} className="mt-1 max-h-14 overflow-hidden text-[12px] font-medium leading-[18px] text-[#4e5c52]" />
-        </div>
-        <span className="shrink-0 rounded-full bg-[#dcfce7] px-2 py-0.5 text-[11px] font-bold text-[#15803d]">{statusLabel}</span>
-      </button>
     </article>
   );
 }
@@ -192,6 +156,7 @@ function getVisibleTaskSubject(task: TaskCard, conversation: Conversation) {
 
 function getSkillMeta(task: TaskCard) {
   if (task.structuredResult?.recordKind === "daily") return { title: "学生日报", nextActions: [] };
+  if (task.taskType === "learning_record") return { title: "课堂记录", nextActions: [] };
   const skill = task.skillId ? getSkillById(task.skillId) : undefined;
 
   if (skill) {
@@ -246,7 +211,7 @@ function getPreview(task: TaskCard) {
 function getActions(task: TaskCard): Array<{ label: string; value: SkillAction; primary?: boolean; soft?: boolean; icon?: React.ReactNode }> {
   if (task.actions) {
     return task.actions.map((action) => ({
-      label: skillActionLabels[action],
+      label: getTaskActionLabel(task, action),
       value: action,
       primary: isPrimarySkillCardAction(task, action),
       soft: action === "make_warmer" || action === "make_shorter" || action === "generate_practice" || action === "update_weakness" || action === "update_learning_record" || action === "generate_next_lesson" || action === "add_monthly_material",
@@ -284,7 +249,7 @@ function normalizeChatCardAction(task: TaskCard, action: { label: string; value:
   if ((task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis") && action.value === "archive") {
     return {
       ...action,
-      label: "确认入档"
+      label: "确认并入档"
     };
   }
 
