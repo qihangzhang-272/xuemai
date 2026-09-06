@@ -1,6 +1,7 @@
 "use client";
 
 import type { Attachment, Contact, LearningRecord, Snapshot } from "@/lib/xuemai/types";
+import { hasOutcomePromise } from "@/lib/xuemai/record-content";
 import { Plus, Search, UserRound, UsersRound, X } from "lucide-react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -9,7 +10,7 @@ import { ChatHeader, Composer, ConfirmTaskCard, EmptyConversationState, MessageR
 import { CreateDialog } from "./CreateDialog";
 import type { SearchDrawerResultTarget } from "./Drawers";
 import { ProfileDrawer, SearchDrawer, SideDrawer, TaskDetailDrawer, drawerTitle } from "./Drawers";
-import { ConversationGroup, MenuButton, Rail } from "./Navigation";
+import { ContactDirectory, ConversationGroup, MenuButton, Rail } from "./Navigation";
 import { LoginScreen, SettingsPanel } from "./Panels";
 import { ReportDialog } from "./ReportDialog";
 import { SideChatPanel } from "./SideChatPanel";
@@ -60,6 +61,7 @@ export function XuemaiWorkbenchApp() {
   const [activeDrawer, setActiveDrawer] = useState<ActiveDrawer>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [locatedTaskId, setLocatedTaskId] = useState<string | null>(null);
+  const [reviewIntent, setReviewIntent] = useState<"detail" | "feedback" | "archive">("detail");
   const [reviewTaskId, setReviewTaskId] = useState<string | null>(null);
   const [activeSkillId, setActiveSkillId] = useState<SkillId | null>(null);
   const [detailStudentId, setDetailStudentId] = useState<string | null>(null);
@@ -82,6 +84,7 @@ export function XuemaiWorkbenchApp() {
   const pendingRef = useRef(new Set<string>());
   const [reportOpen, setReportOpen] = useState(false);
   const sendingRef = useRef(false);
+  const submissionRef = useRef<{ signature: string; id: string } | null>(null);
   const draftRef = useRef<Record<string, { input: string; attachments: ComposerAttachment[]; skill: SkillId | null; date?: string }>>({});
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -158,7 +161,7 @@ export function XuemaiWorkbenchApp() {
   const activeSubjectOptions = useMemo(() => getSubjectTracks(activeConversation), [activeConversation]);
   const activeSubjectTrack = getSelectedSubjectTrack(activeConversation, subjectContextByConversationId[activeConversation.id]);
   const subjectType = getSubjectType(activeConversation);
-  const quickSkills = useMemo(() => getSkillsForSubject(subjectType).filter(skill => ["update_learning_record", "analyze_learning_evidence", "next_lesson_plan", "class_lesson_record"].includes(skill.id)), [subjectType]);
+  const quickSkills = useMemo(() => getSkillsForSubject(subjectType).filter(skill => ["update_learning_record", "analyze_learning_evidence", "class_lesson_record"].includes(skill.id)), [subjectType]);
   const quickTasks = useMemo(() => quickSkills.map((skill) => getSkillDisplayLabel(skill, activeConversation)), [activeConversation, quickSkills]);
   const activeSkill = activeSkillId ? quickSkills.find((skill) => skill.id === activeSkillId) : undefined;
   const activeQuickTaskLabel = activeSkill ? getSkillDisplayLabel(activeSkill, activeConversation) : undefined;
@@ -168,7 +171,9 @@ export function XuemaiWorkbenchApp() {
     () => buildSideChatContextOptions(activeConversation, currentTaskCards, currentTimelineRecords),
     [activeConversation, currentTaskCards, currentTimelineRecords]
   );
-  const workspaceColumns = mode === "todos" ? "56px minmax(0,1fr)" : "56px clamp(240px,21vw,300px) minmax(0,1fr)";
+  const directoryMode = mode === "students" || mode === "classes";
+  const fullPageMode = mode === "todos" || mode === "settings" || directoryMode;
+  const workspaceColumns = fullPageMode ? "56px minmax(0,1fr)" : "56px clamp(240px,21vw,300px) minmax(0,1fr)";
   const workspaceStyle = { "--workspace-columns": workspaceColumns } as CSSProperties;
 
   useEffect(() => {
@@ -486,16 +491,14 @@ async function sendSideChatMessage() {
         setInput("请逐位记录到课学生的表现，再进入对应学生会话整理入档。");
         showToast("请在学生会话中补充个体观察，班级内容不能代替个人表现。"); return;
       }
-      const kind = skillId === "analyze_learning_evidence" ? "analysis"
-        : ["next_lesson_plan", "lesson_prep", "tiered_practice"].includes(skillId) ? "prep" : "record";
-      const now = recordDate;
-      const month = inputSummary.match(/(20\d{2})[-年](0?[1-9]|1[0-2])(?:月|\b)/);
-      const body = { contactId: conversation.id, kind, date: now,
-        month: month ? `${month[1]}-${month[2].padStart(2, "0")}` : now.slice(0, 7),
-        input: inputSummary || (kind === "prep" ? source ? `根据近期记录备课：\n${source.archiveContent || source.content}` : "" : ""),
-        attachmentIds, sourceIds: kind === "prep" && source ? [source.id] : [] };
-      const created = await performBackend(() => backend<LearningRecord>("records", body));
+      const kind = skillId === "analyze_learning_evidence" ? "analysis" : "record";
+      const body = { contactId: conversation.id, kind, date: recordDate, subject: subjectOverride || activeSubjectTrack,
+        input: inputSummary, attachmentIds };
+      const signature = JSON.stringify(body);
+      if (submissionRef.current?.signature !== signature) submissionRef.current = { signature, id: crypto.randomUUID() };
+      const created = await performBackend(() => backend<LearningRecord>("records", { ...body, requestId: submissionRef.current!.id }));
       if (!created) return;
+      submissionRef.current = null;
       if (inputSummary === input && activeIdRef.current === conversation.id) { setInput(""); setComposerAttachments([]); setActiveSkillId(null); }
       delete draftRef.current[conversation.id];
       await runRecordAction({ id: created.id } as TaskCard, "generate");
@@ -537,6 +540,7 @@ async function sendSideChatMessage() {
     const record = snapshotRef.current?.records.find(r => r.id === recordId(task));
     const value = isFeedback(task) ? record?.feedback : record?.content;
     if (!value) { showToast("请等待结果生成后再复制。"); return; }
+    if (hasOutcomePromise(value)) { showToast("反馈含有结果保证或过度承诺，请修改后再发送。"); return; }
     try { await navigator.clipboard.writeText(value); if (isFeedback(task) && task.status !== "feedback_done") setTaskCards(items => items.map(item => item.id === task.id ? { ...item, status: "copied" } : item)); showToast(isFeedback(task) ? "已复制，请到微信粘贴。发送后回来标记已发。" : "正文已复制。"); }
     catch { showToast("无法访问剪贴板，请手动复制正文。"); }
   }
@@ -546,7 +550,7 @@ async function sendSideChatMessage() {
   }
 
   async function archiveTask(task: TaskCard) {
-    if (await runRecordAction(task, "archive")) showToast("已确认入档。");
+    openSkillReview(task, "archive");
   }
 
   function archiveTaskWithProfileUpdates(task: TaskCard) { void archiveTask(task); }
@@ -570,7 +574,8 @@ async function sendSideChatMessage() {
     if (record) void handleSkillEdit(task, isFeedback(task) ? record.aiFeedback : record.aiContent);
   }
 
-function openSkillReview(task: TaskCard) {
+function openSkillReview(task: TaskCard, intent: "detail" | "feedback" | "archive" = "detail") {
+    setReviewIntent(intent);
     selectConversation(task.conversationId); setReviewTaskId(task.id); setSelectedTaskId(task.id);
     setActiveDrawer(null); setMode("side-chat"); setIsContextOpen(true);
   }
@@ -585,17 +590,7 @@ function openSkillReview(task: TaskCard) {
     if (action === "archive" || action === "add_monthly_material" || action === "add_report_material") return void archiveTask(task);
     if (action === "regenerate") return regenerateTask(task);
     if (action === "make_warmer" || action === "make_shorter") return reviseTask(task, action === "make_warmer" ? "warmer" : "shorter");
-    if (action === "generate_feedback") {
-      const existing = taskById.get(`${recordId(task)}:feedback`);
-      if (existing) return openSkillReview(existing);
-      void runRecordAction(task, "feedback").then(result => { if (result) openSkillReview({ ...task, id: `${result.id}:feedback` }); });
-      return;
-    }
-    if (action === "generate_next_lesson") {
-      const conversation = conversations.find(c => c.id === task.conversationId);
-      if (conversation) void createRunningSkill("next_lesson_plan", conversation, `根据本次记录备课：\n${task.currentOutput?.display_content || task.summary}`);
-      return;
-    }
+    if (action === "generate_feedback") return openSkillReview(task, "feedback");
     if (action === "update_learning_record" || action === "save_note") {
       const conversation = conversations.find(c => c.id === task.conversationId);
       if (conversation) void createRunningSkill("update_learning_record", conversation, task.currentOutput?.display_content || task.summary);
@@ -633,7 +628,7 @@ function openSkillReview(task: TaskCard) {
     const selectedClass = conversations.find(c => c.kind === "class" && c.name === payload.className);
     const saved = await performBackend(() => backend<Contact>("contacts", {
       kind, name: payload.name, grade: payload.grade || selectedClass?.grade || "", subject: payload.subject || selectedClass?.subject || "数学",
-      classIds: selectedClass ? [selectedClass.id] : [], serviceRules: payload,
+      classIds: selectedClass ? [selectedClass.id] : [], serviceRules: payload, parents: payload.parents, status: payload.status,
     }), "资料已保存。");
     if (saved) { selectConversation(saved.id); setCreationMode(null); }
   }
@@ -655,7 +650,7 @@ function openSkillReview(task: TaskCard) {
     const selectedClass = conversations.find(c => c.kind === "class" && c.name === payload.className);
     const saved = await performBackend(() => backend<Contact>("contacts", {
       id: conversation.id, kind: conversation.kind, name: payload.name, grade: payload.grade, subject: payload.subject,
-      classIds: selectedClass ? [selectedClass.id] : [], serviceRules: payload,
+      classIds: selectedClass ? [selectedClass.id] : [], serviceRules: payload, parents: payload.parents, status: payload.status,
     }), "资料已更新。");
     if (saved) { setCreationMode(null); setEditingConversationId(null); }
   }
@@ -751,6 +746,10 @@ function openSkillReview(task: TaskCard) {
   const sideWorkspace = reviewTask ? (
     <TaskReviewWorkspace
       task={reviewTask}
+      record={snapshotRef.current?.records.find(record => record.id === recordId(reviewTask))}
+      isStudent={activeConversation.kind === "student"}
+      intent={reviewIntent}
+      onRecordAction={async (action, extra) => { const result = await runRecordAction(reviewTask, action, extra); if (result && action === "correct") { setReviewTaskId(result.id); setReviewIntent("detail"); } return result; }}
       autoArchiveLearningEvidence={preferences.autoArchiveLearningEvidence}
       onBack={() => (setReviewTaskId(null), setMode("chat"))}
       onAction={handleSkillAction}
@@ -791,7 +790,7 @@ function openSkillReview(task: TaskCard) {
 
   return (
     <main className="h-screen h-[100dvh] min-h-0 overflow-hidden bg-[#f7f8f7] text-[#191c1d]">
-      <div className={cn("grid h-full min-h-0 grid-cols-1 xl:[grid-template-columns:var(--workspace-columns)]", mode === "todos" ? "lg:grid-cols-[56px_minmax(0,1fr)]" : "lg:grid-cols-[56px_clamp(260px,21vw,320px)_minmax(0,1fr)]")} style={workspaceStyle}>
+      <div className={cn("grid h-full min-h-0 grid-cols-1 xl:[grid-template-columns:var(--workspace-columns)]", fullPageMode ? "lg:grid-cols-[56px_minmax(0,1fr)]" : "lg:grid-cols-[56px_clamp(260px,21vw,320px)_minmax(0,1fr)]")} style={workspaceStyle}>
         {isMobileNavigationOpen ? (
           <button type="button" className="fixed inset-0 z-40 bg-[#101712]/28 backdrop-blur-[1px] lg:hidden" onClick={() => setIsMobileNavigationOpen(false)} aria-label="关闭导航" />
         ) : null}
@@ -805,7 +804,7 @@ function openSkillReview(task: TaskCard) {
           className={isMobileNavigationOpen ? "fixed inset-y-0 left-0 z-50 w-14 shadow-xl lg:static lg:z-auto lg:w-auto lg:shadow-none" : "hidden lg:flex"}
         />
 
-        {mode !== "todos" ? <aside className={cn("min-h-0 border-r border-[#e3e6e4] bg-[#fbfcfb]", isMobileNavigationOpen ? "fixed inset-y-0 left-14 z-50 block w-[min(calc(100vw-56px),320px)] shadow-xl lg:static lg:w-auto lg:shadow-none" : "hidden lg:block")}>
+        {!fullPageMode ? <aside className={cn("min-h-0 border-r border-[#e3e6e4] bg-[#fbfcfb]", isMobileNavigationOpen ? "fixed inset-y-0 left-14 z-50 block w-[min(calc(100vw-56px),320px)] shadow-xl lg:static lg:w-auto lg:shadow-none" : "hidden lg:block")}>
           <div className="flex h-[56px] items-center gap-2 px-3">
             <label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full bg-[#f3f5f4] px-3 text-xs text-[#8a918d] ring-1 ring-transparent transition focus-within:ring-[#d7e8dc]">
               <button type="button" onClick={openGlobalSearch} className="-ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#8a918d] transition hover:bg-white hover:text-[#168f42]" aria-label="打开全局搜索">
@@ -853,22 +852,27 @@ function openSkillReview(task: TaskCard) {
         </aside> : null}
 
         <section className="relative flex min-h-0 min-w-0 flex-col bg-[#f7f8f7]">
-          {mode === "todos" ? (
+          {fullPageMode && mode === "settings" ? <button onClick={() => setIsMobileNavigationOpen(true)} className="shrink-0 self-start rounded-full bg-white px-4 py-2 text-sm lg:hidden">打开主导航</button> : null}
+          {directoryMode && snapshotRef.current ? <ContactDirectory key={mode} kind={mode === "students" ? "student" : "class"} contacts={snapshotRef.current.contacts} onOpen={selectConversation} onProfile={id => setDetailStudentId(id)} onEdit={id => { const contact = conversations.find(c => c.id === id); if (contact) handleEditProfileRequest(contact); }} onCreate={() => setCreationMode(mode === "students" ? "student" : "class")} onNavigation={() => setIsMobileNavigationOpen(true)} /> : mode === "todos" ? (
             <WorkOverviewPanel
               taskCards={taskCards}
               conversations={conversations}
               timelineRecords={timelineRecords}
               teacherName={teacher.nickname}
+              onStudents={() => setMode("students")}
+              onReport={() => setReportOpen(true)}
               onOpenNavigation={() => setIsMobileNavigationOpen(true)}
               onEnter={(conversationId, taskId) => {
                 selectConversation(conversationId);
                 setSelectedTaskId(taskId ?? null);
-                if (taskId) { setReviewTaskId(taskId); setMode("side-chat"); }
+                if (taskId) { setReviewTaskId(taskId); setReviewIntent(taskId.endsWith(":feedback") ? "feedback" : "detail"); setMode("side-chat"); }
                 showToast("已定位到对应聊天");
               }}
             />
           ) : mode === "settings" ? (
             <SettingsPanel
+              storedPreferences={snapshotRef.current?.preferences}
+              onSavePreferences={async value => !!await performBackend(() => backend("settings", value, "PATCH"))}
               onOpenTask={openSkillReview}
               preferences={preferences}
               onChange={handlePreferences}
@@ -911,8 +915,8 @@ function openSkillReview(task: TaskCard) {
 
       </div>
 
-      {reportOpen && snapshotRef.current ? <ReportDialog students={snapshotRef.current.contacts.filter(c => c.kind === "student" && (activeConversation.kind !== "class" || c.classIds.includes(activeConversation.id)))} records={snapshotRef.current.records} initialStudentId={activeConversation.kind === "student" ? activeConversation.id : undefined} onClose={() => setReportOpen(false)} onOpenStudent={id => { setReportOpen(false); selectConversation(id); }} onGenerate={async (contactId, kind, period) => {
-        const created = await performBackend(() => backend<LearningRecord>("records", { contactId, kind, date: kind === "daily" ? period : new Date().toLocaleDateString("en-CA"), month: kind === "monthly" ? period : "", input: `生成 ${period} 学生${kind === "daily" ? "日报" : "月报"}`, attachmentIds: [] }));
+      {reportOpen && snapshotRef.current ? <ReportDialog students={snapshotRef.current.contacts.filter(c => c.kind === "student" && (mode === "todos" || activeConversation.kind !== "class" || c.classIds.includes(activeConversation.id)))} records={snapshotRef.current.records} initialStudentId={activeConversation.kind === "student" ? activeConversation.id : undefined} onClose={() => setReportOpen(false)} onOpenStudent={id => { setReportOpen(false); selectConversation(id); }} onGenerate={async (contactId, kind, period, selectedSourceIds) => {
+        const created = await performBackend(() => backend<LearningRecord>("records", { contactId, kind, date: new Date().toLocaleDateString("en-CA"), month: period, input: `生成 ${period} 学生月报`, attachmentIds: [], selectedSourceIds }));
         if (!created) return false;
         setReportOpen(false); selectConversation(contactId);
         void runRecordAction({ id: created.id } as TaskCard, "generate");
@@ -922,7 +926,7 @@ function openSkillReview(task: TaskCard) {
         <CreateDialog
           mode={creationMode}
           classOptions={conversations.filter((item) => item.kind === "class").map((item) => item.name)}
-          initialPayload={editingConversation ? toCreationPayload(editingConversation) : undefined}
+          initialPayload={editingConversation ? { ...toCreationPayload(editingConversation), ...snapshotRef.current?.contacts.find(c => c.id === editingConversation.id) } : undefined}
           eyebrow={editingConversation ? (editingConversation.kind === "class" ? "修改班级" : "修改学生档案") : undefined}
           title={editingConversation ? (editingConversation.kind === "class" ? "修改班级资料" : "修改学生资料") : undefined}
           primaryLabel={editingConversation ? "保存修改" : undefined}
@@ -947,6 +951,9 @@ function openSkillReview(task: TaskCard) {
       {detailStudent ? (
         <StudentDetailModal
           student={detailStudent}
+          contact={snapshotRef.current?.contacts.find(c => c.id === detailStudent.id)}
+          onConversation={() => { setDetailStudentId(null); selectConversation(detailStudent.id); }}
+          onReport={() => { setDetailStudentId(null); selectConversation(detailStudent.id); setReportOpen(true); }}
           taskCards={taskCards}
           timelineRecords={timelineRecords}
           activeSubject={getSelectedSubjectTrack(detailStudent, subjectContextByConversationId[detailStudent.id])}
@@ -956,7 +963,7 @@ function openSkillReview(task: TaskCard) {
           onEditProfile={handleEditProfileRequest}
         />
       ) : null}
-      {toast ? <div role="status" aria-live="polite" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-[#191c1d] px-4 py-2 text-sm font-medium text-white shadow-2xl">{toast}</div> : null}
+      {toast ? <div role="status" aria-live="polite" className="fixed bottom-6 left-1/2 z-50 max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-2xl bg-[#191c1d] px-4 py-2 text-sm font-medium text-white shadow-2xl">{toast}</div> : null}
     </main>
   );
 }

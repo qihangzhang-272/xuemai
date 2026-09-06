@@ -23,8 +23,8 @@ for(const fixture of [
   {file:'student-work.pdf',kind:'analysis',contactId:student.id,evidence:'observed'},
   {file:'student-work.png',kind:'analysis',contactId:student.id,evidence:'observed'},
   {file:'blank-worksheet.png',kind:'analysis',contactId:student.id,evidence:'insufficient'},
-  {file:'lesson-outline.docx',kind:'prep',contactId:klass.id,evidence:'teaching'},
-  {file:'lesson-slides.pptx',kind:'prep',contactId:klass.id,evidence:'teaching'},
+  {file:'lesson-outline.docx',kind:'analysis',contactId:student.id,evidence:'insufficient'},
+  {file:'lesson-slides.pptx',kind:'analysis',contactId:student.id,evidence:'insufficient'},
 ]) {
   const started=Date.now();
   console.log(`验证 ${fixture.file} 上传及真实解析 / AI…`);
@@ -33,7 +33,7 @@ for(const fixture of [
   const uploaded=await fetch(`${base}/api/xuemai/attachments`,{method:'POST',headers:{Cookie:cookie,Origin:base},body:form});
   assert.equal(uploaded.status,200);
   const attachment=await uploaded.json();
-  let record=(await json('records',{contactId:fixture.contactId,kind:fixture.kind,input:fixture.kind==='prep'?'请根据教学资料整理40分钟备课建议。':'只根据上传文件中真实存在的学生作答、批改或订正进行判断。若为空白题目，不推断学生能力。',date:'2026-09-04',attachmentIds:[attachment.id]})).data;
+  let record=(await json('records',{contactId:fixture.contactId,kind:fixture.kind,input:'只根据上传文件中真实存在的学生作答、批改或订正进行判断。若是空白题目或纯教学资料，不推断学生能力。',date:'2026-09-04',attachmentIds:[attachment.id]})).data;
   record=(await json(`records/${record.id}`,{action:'generate',revision:record.revision},'PATCH')).data;
   assert.equal(record.status,'ready'); assert.equal(record.evidence,fixture.evidence);
   if(fixture.evidence==='insufficient'){

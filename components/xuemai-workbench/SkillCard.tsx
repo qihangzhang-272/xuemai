@@ -1,3 +1,4 @@
+import { cardSummary } from "@/lib/xuemai/record-content";
 import { cn } from "@/lib/utils";
 import { getSkillById } from "@/src/skills/registry";
 import type { SkillActionId } from "@/src/skills/types";
@@ -22,11 +23,12 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
   const meta = getSkillMeta(task);
   const version = getSkillCardVersionMeta(task);
   const statusCopy = getTaskCardStatusCopy(task.status, task);
+  if (task.taskType === "monthly_report" && task.structuredResult?.recordKind === "monthly" && !running && task.status !== "failed") statusCopy.label = task.structuredResult.reportStatus === "final" ? "已定稿" : task.structuredResult.reportStatus === "corrected" ? "已更正" : "月报草稿";
   const fieldValue = normalizeVisibleCardText(version.field.value);
   const preview = normalizeVisibleCardText((task.status === "archived" ? version.archivedText : version.currentText) || getPreview(task));
   const titleText = getSkillCardTitle(conversation, task, meta.title);
   const subjectLabel = getVisibleTaskSubject(task, conversation);
-  const reviewLabel = task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis" ? "查看详细报告" : task.skillId === "monthly_report" || task.taskType === "monthly_report" ? "查看报告" : "查看详情";
+  const reviewLabel = task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis" ? "查看详细报告" : task.skillId === "monthly_report" || task.taskType === "monthly_report" ? "查看报告" : "查看完整内容";
   const timeLabel = formatChatTimestamp(task.createdAt);
   const fullTimeLabel = formatFullTimestamp(task.createdAt);
   const actions = getActions(task)
@@ -102,7 +104,7 @@ export function SkillCard({ task, conversation, onAction, onEdit, onReview }: Sk
               className="mt-2.5 min-h-[160px] w-full resize-y rounded-[12px] border border-[#caead6] bg-[#fbfffd] px-3 py-2.5 text-[13px] font-semibold leading-5 text-[#26312a] outline-none transition focus:border-[#9bd9ad] disabled:bg-[#f3f4f5] disabled:text-[#6b746d]"
             />
           ) : (
-            <TeachingContent text={preview} className="mt-2.5 text-[13px] font-medium leading-6 text-[#3d4a3d]" />
+            <TeachingContent text={cardSummary(preview)} className="mt-2.5 text-[13px] font-medium leading-6 text-[#3d4a3d]" />
           )}
           {task.status === "failed" ? <p className="mt-1 text-[12px] font-semibold leading-5 text-[#b91c1c]">这次未能完成，原始材料已保留。请点击重新生成。</p> : null}
           {version.isEdited ? <p className="mt-1 text-[11px] font-semibold text-[#c2410c]">{version.editLabel}</p> : null}
@@ -155,6 +157,7 @@ function getVisibleTaskSubject(task: TaskCard, conversation: Conversation) {
 }
 
 function getSkillMeta(task: TaskCard) {
+  if (task.taskType === "monthly_report" && task.structuredResult?.recordKind === "monthly") return { title: "学生月报", nextActions: [] };
   if (task.structuredResult?.recordKind === "daily") return { title: "学生日报", nextActions: [] };
   if (task.taskType === "learning_record") return { title: "课堂记录", nextActions: [] };
   const skill = task.skillId ? getSkillById(task.skillId) : undefined;
@@ -225,7 +228,7 @@ function getActions(task: TaskCard): Array<{ label: string; value: SkillAction; 
       { label: "改温和一点", value: "make_warmer", soft: true },
       { label: "改简洁一点", value: "make_shorter", soft: true },
       { label: "标记已发给家长", value: "mark_parent_sent", primary: true },
-      { label: "确认并入档", value: "archive", icon: <Archive size={13} /> },
+      { label: "加入学生档案", value: "archive", icon: <Archive size={13} /> },
       { label: "重新生成", value: "regenerate", icon: <RotateCcw size={13} /> }
     ];
   }
@@ -249,7 +252,7 @@ function normalizeChatCardAction(task: TaskCard, action: { label: string; value:
   if ((task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis") && action.value === "archive") {
     return {
       ...action,
-      label: "确认并入档"
+      label: "加入学生档案"
     };
   }
 

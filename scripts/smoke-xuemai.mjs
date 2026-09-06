@@ -1,3 +1,4 @@
+import { archiveOptions } from "../lib/xuemai/record-content.ts";
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
@@ -27,8 +28,8 @@ catch { auth = await request('auth', { mode: 'local', identifier, password }); }
 cookie = auth.response.headers.getSetCookie().map(c => c.split(';')[0]).join('; ');
 assert(cookie.startsWith('xuemai_session='));
 await mkdir('output', { recursive: true });
-await writeFile('.local-access.txt', `仅限本机体验账号\n地址：${base}\n账号：${identifier}\n密码：${password}\n演示学生与教学内容均为合成验收数据。\n`);
-console.log('本机账号就绪；凭据已保存到 .local-access.txt');
+await writeFile('output/.smoke-access.txt', `仅限本机体验账号\n地址：${base}\n账号：${identifier}\n密码：${password}\n演示学生与教学内容均为合成验收数据。\n`);
+console.log('本机账号就绪；验收凭据已保存到 output/.smoke-access.txt');
 
 const klass = (await request('contacts', { kind: 'class', name: '演示 · 六年级数学小班', subject: '数学', grade: '六年级', classIds: [] })).data;
 const student = (await request('contacts', { kind: 'student', name: '演示 · 陈一诺', subject: '数学', grade: '六年级', classIds: [klass.id] })).data;
@@ -58,7 +59,7 @@ record = (await request(`records/${record.id}`, { action: 'edit', revision: reco
 record = (await request(`records/${record.id}`, { action: 'sent', revision: record.revision }, 'PATCH')).data;
 assert.equal(record.sentContent, record.feedback);
 assert.equal(record.archivedAt, null);
-record = (await request(`records/${record.id}`, { action: 'archive', revision: record.revision }, 'PATCH')).data;
+record = (await request(`records/${record.id}`, { action: 'archive', revision: record.revision, archiveIds: archiveOptions(record).filter(option => option.id !== 'feedback').map(option => option.id) }, 'PATCH')).data;
 assert.equal(record.archiveContent, record.content);
 await request(`records/${record.id}`, { action: 'edit', revision: record.revision, content: '篡改确认版本' }, 'PATCH', 400);
 const unarchived = (await request('records', { contactId: student.id, kind: 'record', input: '未入档材料标记：不得出现在月报', date: '2026-09-03', attachmentIds: [] })).data;
@@ -68,12 +69,11 @@ monthly = (await request(`records/${monthly.id}`, { action: 'generate', revision
 assert(monthly.sourceIds.includes(record.id));
 assert(!monthly.sourceIds.includes(unarchived.id));
 assert(!monthly.content.includes('未入档材料标记'));
-let prep = (await request('records', { contactId: klass.id, kind: 'prep', input: '合成教学素材：六年级数学，分数乘法，一课时40分钟。教学目标：理解分数乘法的意义，掌握计算顺序与约分方法。请安排讲解与课堂观察环节。', date: '2026-09-04' })).data;
-console.log('正在生成真实备课结果…');
-prep = (await request(`records/${prep.id}`, { action: 'generate', revision: prep.revision }, 'PATCH')).data;
-assert.equal(prep.evidence, 'teaching');
-await request(`records/${prep.id}`, { action: 'archive', revision: prep.revision }, 'PATCH', 400);
-await request(`records/${prep.id}`, { action: 'feedback', revision: prep.revision }, 'PATCH', 400);
+await request('records', { contactId: klass.id, kind: 'prep', input: '范围外备课', date: '2026-09-04' }, 'POST', 400);
+await request('records', { contactId: student.id, kind: 'daily', date: '2026-09-04' }, 'POST', 400);
+monthly = (await request(`records/${monthly.id}`, { action: 'finalize', revision: monthly.revision }, 'PATCH')).data;
+assert.equal(monthly.reportStatus, 'final');
+await request(`records/${monthly.id}`, { action: 'edit', revision: monthly.revision, content: '覆盖定稿' }, 'PATCH', 400);
 
 const form = new FormData();
 form.set('file', new File(['合成验收材料：学生写出 3/4 × 2/5 = 6/20，老师圈出最后一步并提示约分，学生订正为 3/10。'], '学生订正记录.txt', { type: 'text/plain' }));
@@ -99,5 +99,5 @@ const legacy = await fetch(`${base}/api/workbench-v2`);
 assert.equal(legacy.status, 404);
 const csrf = await fetch(`${base}/api/xuemai/contacts`, { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json', Origin: 'https://untrusted.example' }, body: '{}' });
 assert.equal(csrf.status, 403);
-await writeFile('output/http-smoke.json', JSON.stringify({ ok: true, time: new Date().toISOString(), checks, additionalChecks: ['独立账号与数据隔离', '过期版本拒绝', '月报仅使用入档快照', '备课不能入学生档案', '跨站写入拒绝', '原型 API 禁用', '真实模型5条工作流'], identifiers: { studentId: student.id, classId: klass.id, recordId: record.id, monthlyId: monthly.id, analysisId: analysis.id } }, null, 2));
+await writeFile('output/http-smoke.json', JSON.stringify({ ok: true, time: new Date().toISOString(), checks, additionalChecks: ['独立账号与数据隔离', '过期版本拒绝', '月报仅使用入档快照', '范围外备课日报拒绝新建', '跨站写入拒绝', '原型 API 禁用', '真实模型记录反馈月报材料4条工作流'], identifiers: { studentId: student.id, classId: klass.id, recordId: record.id, monthlyId: monthly.id, analysisId: analysis.id } }, null, 2));
 console.log(`PASS：${checks.length} 次接口检查及状态规则；详见 output/http-smoke.json`);

@@ -1,6 +1,6 @@
 import type { ContextSource, SkillActionId, SkillConfidenceLevel, SkillEditEvent, SkillId, SkillOutputVersion, SkillRunEvent } from "@/src/skills/types";
 
-export type WorkspaceMode = "chat" | "side-chat" | "todos" | "settings";
+export type WorkspaceMode = "chat" | "side-chat" | "todos" | "settings" | "students" | "classes";
 export type ConversationKind = "student" | "class" | "assistant";
 export type ActiveDrawer = "detail" | "profile" | "search" | null;
 export type SideChatContextType = "student_profile" | "grading" | "monthly_report" | "conversation_records" | "learning_material";
@@ -164,6 +164,8 @@ export type ChatState = {
 };
 
 export type CreationPayload = {
+  status?: "active" | "paused" | "archived";
+  parents?: { id: string; name: string; relation: string; contact: string }[];
   name: string;
   grade: string;
   subject: string;

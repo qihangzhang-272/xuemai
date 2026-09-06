@@ -8,6 +8,9 @@ export type Contact = {
   mdtId?: string;
   createdAt: string;
   serviceRules?: Record<string, string | boolean>;
+  status?: "active" | "paused" | "archived";
+  parents?: { id: string; name: string; relation: string; contact: string }[];
+  assignedTo?: string[];
 };
 
 export type RecordKind = "record" | "analysis" | "prep" | "monthly" | "daily";
@@ -40,6 +43,16 @@ export type LearningRecord = {
   sourceIds: string[];
   month: string;
   revision: number;
+  requestId?: string;
+  subject?: string;
+  sentAt?: string;
+  archiveIds?: string[];
+  selectedSourceIds?: string[];
+  correctionOf?: string;
+  correctedBy?: string;
+  createdBy?: string;
+  lastActor?: string;
+  reportStatus?: "draft" | "final" | "corrected";
 };
 
 export type Attachment = {
@@ -49,9 +62,9 @@ export type Attachment = {
 
 export function reportSources(records: LearningRecord[], contactId: string, kind: "daily" | "monthly", period: string) {
   return records.filter(item => item.contactId === contactId && item.archivedAt && item.archiveContent &&
-    ["record", "analysis"].includes(item.kind) && (kind === "daily" ? item.date === period : item.date.startsWith(`${period}-`)));
+    !item.correctedBy && ["record", "analysis"].includes(item.kind) && (kind === "daily" ? item.date === period : item.date.startsWith(`${period}-`)));
 }
-export type Preferences = { subject: string; grade: string; tone: string; address: string };
+export type Preferences = { subject: string; grade: string; tone: string; address: string; length?: "简短" | "适中" | "详细"; parentSummaryFirst?: boolean };
 export type Teacher = { id: string; name: string; identifier: string };
 export type Snapshot = {
   teacher: Teacher;
@@ -67,6 +80,6 @@ export function contactStatus(records: LearningRecord[], kind: Contact["kind"] =
   if (records.some(r => r.status === "running")) return "处理中";
   if (records.some(r => r.feedbackStatus === "pending")) return "待反馈";
   if (records.some(r => r.status === "draft")) return "待整理";
-  if (kind === "student" && records.some(r => r.status === "ready" && r.evidence === "observed" && !r.archivedAt && r.kind !== "prep")) return "待入档";
+  if (kind === "student" && records.some(r => r.status === "ready" && !r.archivedAt)) return "记录已保留";
   return records.length ? "已完成" : "尚无记录";
 }

@@ -20,6 +20,7 @@ export async function backend<T>(path: string, body?: unknown, method = "POST"):
   if (!response.ok) throw new Error(data.error || "操作未完成，请重试");
   return data;
 }
+export function displayTaskTitle(task: Pick<TaskCard, "title" | "targetName">) { return task.title.includes(task.targetName) ? task.title : `${task.targetName} · ${task.title}`; }
 export function recordId(task: Pick<TaskCard, "id">) { return task.id.replace(/:feedback$/, ""); }
 export function isFeedback(task: Pick<TaskCard, "id">) { return task.id.endsWith(":feedback"); }
 export function nextClassroomStep(record?: LearningRecord) {
@@ -27,15 +28,12 @@ export function nextClassroomStep(record?: LearningRecord) {
   if (record.status === "running") return "正在整理本次记录，请稍候。";
   if (record.status === "failed") return "这条记录未整理完成，原文已保存。打开失败记录后可以重试。";
   if (!record.content) return "原文已保存，点击「重新生成」整理课堂记录。";
-  if (record.kind === "prep") return "备课建议已整理，检查后可按班级情况调整；上课后再记录学生的实际表现。";
-  if (record.kind === "daily" || record.kind === "monthly") return record.archivedAt
-    ? "报告已入档，可以打开报告复制正文，或继续记录下一节课。"
-    : "检查学习报告的学生、日期与正文，确认后点击「确认并入档」。";
+  if (record.kind === "prep" || record.kind === "daily") return "历史记录保留可读，可以继续记录课堂内容。";
+  if (record.kind === "monthly") return record.reportStatus === "final" ? "月报已定稿，可以整理家长版反馈。" : "检查月报正文和素材，确认后定稿。";
   if (record.evidence !== "observed") return "请补充学生的实际作答、订正或课堂表现，再重新整理。";
-  if (!record.archivedAt) return "检查课堂记录是否准确，确认后点击「确认并入档」。";
-  if (!record.feedback) return "记录已入档，下一步可以生成家长反馈。";
-  if (record.feedbackStatus !== "sent") return "检查家长反馈后复制到微信，发送后回来标记已发。";
-  return "本次记录与反馈已完成，可以继续记录下一节课。";
+  if (record.feedbackStatus === "sent") return "本次反馈已完成，可以继续记录下一节课。";
+  if (record.feedback) return "家长反馈草稿已保留，检查后可以复制发送。";
+  return "课堂记录已保留。需要家长反馈时，点击「检查并反馈」；入档可按需选择。";
 }
 export const recordSkill: Record<LearningRecord["kind"], SkillId> = {
   record: "update_learning_record", analysis: "analyze_learning_evidence", prep: "next_lesson_plan", monthly: "monthly_report", daily: "monthly_report",
@@ -49,29 +47,27 @@ export function toTask(record: LearningRecord, contact: Conversation, feedback =
   const status = record.status === "running" ? "running" : record.status === "failed" ? "failed"
     : feedback ? record.feedbackStatus === "sent" ? "feedback_done" : "completed"
     : record.archivedAt ? "archived" : "completed";
-  const locked = !!record.archivedAt || record.feedbackStatus === "sent";
-  const actions: SkillAction[] = status === "running" ? [] : status === "failed" ? ["regenerate"]
-    : feedback ? record.feedbackStatus === "sent" ? ["copy_feedback"] : ["copy_feedback", "mark_parent_sent", "make_warmer", "make_shorter", "regenerate"]
+  const locked = !!record.archivedAt || record.feedbackStatus === "sent" || record.reportStatus === "final";
+  const historical = record.kind === "prep" || record.kind === "daily";
+  const actions: SkillAction[] = historical ? ["copy_feedback"] : status === "running" ? [] : status === "failed" ? ["regenerate"]
+    : feedback ? record.feedbackStatus === "sent" ? ["copy_feedback"] : ["generate_feedback"]
     : !text ? ["regenerate"] : [
+      ...(record.evidence === "observed" && contact.kind === "student" ? ["generate_feedback" as const] : []),
+      ...(contact.kind === "student" && record.evidence === "observed" && !record.archivedAt && record.kind !== "monthly" ? ["archive" as const] : []),
+      ...(record.kind === "monthly" ? ["copy_feedback" as const] : []),
       ...(!locked ? ["regenerate" as const] : []),
-      ...(["monthly", "daily"].includes(record.kind) ? ["copy_feedback" as const] : []),
-      ...(record.evidence === "observed" && record.kind !== "prep" ? [
-        ...(record.feedback || record.feedbackStatus !== "sent" ? ["generate_feedback" as const] : []),
-        ...(contact.kind === "student" && !record.archivedAt ? ["archive" as const] : []),
-      ] : []),
-      "generate_next_lesson",
     ];
   return {
     id: feedback ? `${record.id}:feedback` : record.id, conversationId: record.contactId, targetName: contact.name,
     skillId: feedback ? "generate_feedback" : record.kind === "record" && contact.kind === "class" ? "class_lesson_record" : recordSkill[record.kind],
     taskType: feedback ? "feedback" : taskType[record.kind], title: feedback ? `${contact.name} · 家长反馈` : record.title,
-    subject: contact.subject, status, currentStepIndex: 0,
+    subject: record.subject || contact.subject, status, currentStepIndex: 0,
     steps: [{ label: record.error || (status === "running" ? "正在处理材料，请稍候" : text ? "整理完成" : "原始内容已保存，点击重新生成"), status: status === "running" ? "running" : status === "failed" ? "failed" : "completed" }],
     inputSummary: record.input, summary: record.error || text || "原始内容已保存", feedbackText: feedback ? text : undefined,
     detail: record.error || text, originalOutput: { display_content: original, structured_result: {} },
     currentOutput: { display_content: text, structured_result: {} },
     archivedOutput: !feedback && record.archiveContent ? { display_content: record.archiveContent, structured_result: {} } : undefined,
-    structuredResult: { evidence: record.evidence, recordKind: record.kind, date: record.date, month: record.month, sourceIds: record.sourceIds, hasFeedback: !!record.feedback, locked: feedback ? record.feedbackStatus === "sent" : locked }, actions, nextSuggestions: [],
+    structuredResult: { reportStatus: record.reportStatus, feedbackStatus: record.feedbackStatus, sentAt: record.sentAt, archivedAt: record.archivedAt, evidence: record.evidence, recordKind: record.kind, date: record.date, month: record.month, sourceIds: record.sourceIds, hasFeedback: !!record.feedback, locked: feedback ? record.feedbackStatus === "sent" : locked }, actions, nextSuggestions: [],
     contextSources: [{ id: record.id, label: "老师提交的课堂记录与材料", type: "teacher_input" }],
     archiveTarget: contact.kind === "class" ? "班级课堂记录" : "学生档案 > 学习记录",
     createdAt: record.createdAt, updatedAt: record.updatedAt,
@@ -86,7 +82,7 @@ export function toChatState(snapshot: Snapshot): ChatState {
       subject: contact.subject, grade: contact.grade,
       className: contact.classIds.map(id => snapshot.contacts.find(c => c.id === id)?.name).filter(Boolean).join("、"),
       summary: latest?.title || "还没有记录", time: latest ? new Date(latest.updatedAt).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" }) : "",
-      statusLabel: contactStatus(records, contact.kind), accent: (["green", "blue", "orange"] as const)[index % 3],
+      statusLabel: contact.status === "paused" ? "服务暂停" : contact.status === "archived" ? "学生已归档" : contactStatus(records, contact.kind), accent: (["green", "blue", "orange"] as const)[index % 3],
       attention: records.some(r => r.feedbackStatus === "pending" || r.status === "failed"),
       members: contact.kind === "class" ? snapshot.contacts.filter(c => c.classIds.includes(contact.id)).length : undefined,
       serviceRules: contact.serviceRules,
@@ -114,9 +110,9 @@ export function toChatState(snapshot: Snapshot): ChatState {
   }
   return {
     conversations: [assistantConversation, ...conversations], messages, taskCards: cards,
-    timelineRecords: snapshot.records.filter(r => r.archivedAt).map(r => ({
+    timelineRecords: snapshot.records.filter(r => r.archivedAt || r.reportStatus === "final" || r.reportStatus === "corrected").map(r => ({
       id: `${r.id}:archive`, conversationId: r.contactId, sourceTaskId: r.id, skillId: recordSkill[r.kind],
-      title: r.title, summary: r.archiveContent || "", archiveTarget: "学生档案 > 学习记录", createdAt: r.archivedAt!,
+      title: r.title, summary: r.archiveContent || r.content, archiveTarget: "学生档案 > 学习记录", createdAt: r.archivedAt || r.updatedAt,
     })),
     teacher: { contact: snapshot.teacher.identifier, nickname: snapshot.teacher.name, subjects: [snapshot.preferences.subject].filter(Boolean), teachingStages: [snapshot.preferences.grade].filter(Boolean), role: "individual" },
     preferences: { ...emptyState.preferences, feedbackTone: (["温和", "严谨", "鼓励型", "简洁型"] as const).find(t => snapshot.preferences.tone.includes(t)) || "温和" },

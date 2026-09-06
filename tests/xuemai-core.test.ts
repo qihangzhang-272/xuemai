@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { archiveOptions } from "../lib/xuemai/record-content";
 import { dateLabel } from "../lib/xuemai/date";
 import { contactStatus } from "../lib/xuemai/types";
 import { parseAiOutput } from "../lib/xuemai/ai-output";
@@ -19,7 +20,7 @@ let student: ReturnType<typeof saveContact>;
 let klass: ReturnType<typeof saveContact>;
 beforeAll(() => {
   klass = saveContact(teacher.id, { kind: "class", name: "六年级", subject: "数学", grade: "", classIds: [] });
-  student = saveContact(teacher.id, { kind: "student", name: "小陈", subject: "数学", grade: "", classIds: [klass.id] });
+  student = saveContact(teacher.id, { kind: "student", name: "小陈", subject: "数学", grade: "六年级", classIds: [klass.id] });
 });
 function record(contactId = student.id) {
   return createRecord(teacher.id, { contactId, kind: "record", input: "老师观察：学生会计算但忘记约分", date: "2026-09-04", attachmentIds: [] });
@@ -33,16 +34,16 @@ describe("学脉独立闭环", () => {
     expect(() => createRecord(teacher.id, { contactId: student.id, kind: "record", date: "2026-09-05", input: "记录本节班课：今天讲了……学生整体表现……共性问题……" })).toThrow("省略号");
     expect(createRecord(teacher.id, { contactId: student.id, kind: "record", date: "2026-09-05", input: "今天讲了分数乘法，学生整体表现：小陈经提醒后完成约分。" }).status).toBe("draft");
   });
-  it("日报要求明确学生和真实日期，不接受班级或无效日期", () => {
-    const body = { contactId: student.id, kind: "daily", date: "2026-09-05" };
-    expect(createRecord(teacher.id, body).title).toBe("2026-09-05 学习日报");
+  it("月报要求明确学生和真实日期，不接受班级或无效日期", () => {
+    const body = { contactId: student.id, kind: "monthly", month: "2026-09", date: "2026-09-05" };
     expect(() => createRecord(teacher.id, { ...body, contactId: klass.id })).toThrow("请选择一位学生");
     expect(() => createRecord(teacher.id, { ...body, date: "2026-02-30" })).toThrow("日期格式");
+    expect(() => createRecord(teacher.id, body)).toThrow("没有已入档");
   });
   it("原版表单的服务规则可持久保存，更新姓名不丢失规则", () => {
-    const contact = saveContact(teacher.id, { kind: "student", name: "规则测试", subject: "数学", serviceRules: { learningGoal: "核对约分步骤", needsFeedback: true, arbitrary: "忽略" } });
+    const contact = saveContact(teacher.id, { kind: "student", name: "规则测试", subject: "数学", grade: "六年级", serviceRules: { learningGoal: "核对约分步骤", needsFeedback: true, arbitrary: "忽略" } });
     const updated = saveContact(teacher.id, { id: contact.id, kind: "student", name: "规则测试改名", subject: "数学" });
-    expect(get(teacher.id, "contact", updated.id).serviceRules).toEqual({ learningGoal: "核对约分步骤", needsFeedback: true });
+    expect(get(teacher.id, "contact", updated.id).serviceRules).toEqual({ learningGoal: "核对约分步骤" });
   });
   it("材料分析不能把仅用于备课的 teaching 类型保存为正常结果", () => {
     const analysis = { ...record(), kind: "analysis" } as LearningRecord;
@@ -89,7 +90,7 @@ describe("学脉独立闭环", () => {
     expect(draft.archivedAt).toBeNull(); expect(draft.feedbackStatus).toBe("pending");
     draft = await recordAction(teacher.id, draft.id, { action: "sent", revision: draft.revision });
     expect(draft.archivedAt).toBeNull(); expect(draft.sentContent).toBe(draft.feedback);
-    draft = await recordAction(teacher.id, draft.id, { action: "archive", revision: draft.revision });
+    draft = await recordAction(teacher.id, draft.id, { action: "archive", revision: draft.revision, archiveIds: archiveOptions(draft).filter(option => option.id !== "feedback").map(option => option.id) });
     expect(draft.archiveContent).toBe(draft.content);
     await expect(recordAction(teacher.id, draft.id, { action: "edit", revision: draft.revision, content: "覆盖" })).rejects.toThrow("保持不变");
   });
@@ -101,7 +102,7 @@ describe("学脉独立闭环", () => {
   });
   it("月报只取当前学生、当月、已入档的课堂及分析快照", async () => {
     let archived = await observed();
-    archived = await recordAction(teacher.id, archived.id, { action: "archive", revision: archived.revision });
+    archived = await recordAction(teacher.id, archived.id, { action: "archive", revision: archived.revision, archiveIds: archiveOptions(archived).map(option => option.id) });
     const draft = record();
     const query = { ...draft, kind: "monthly", month: "2026-09" } as LearningRecord;
     const ids = monthlySources(teacher.id, query).map(r => r.id);

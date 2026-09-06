@@ -1,14 +1,19 @@
 import Image from "next/image";
 import type React from "react";
-import { Bell, ClipboardCheck, MessageSquareText, Settings, Sparkles, UsersRound } from "lucide-react";
+import { useState } from "react";
+import type { Contact } from "@/lib/xuemai/types";
+import { Bell, ClipboardCheck, MessageSquareText, Settings, Sparkles, UsersRound, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Conversation, WorkspaceMode } from "./types";
 
 export function Rail({ mode, onModeChange, teacherName, className }: { mode: WorkspaceMode; onModeChange: (mode: WorkspaceMode) => void; teacherName: string; className?: string }) {
   const items = [
-    { id: "chat" as const, label: "聊天", icon: MessageSquareText },
     { id: "todos" as const, label: "工作台", icon: ClipboardCheck },
-    { id: "settings" as const, label: "设置", icon: Settings }
+    { id: "chat" as const, label: "会话", icon: MessageSquareText },
+    { id: "students" as const, label: "学生", icon: UserRound },
+    { id: "classes" as const, label: "班级", icon: UsersRound },
+    { id: "settings" as const, label: "我的", icon: Settings }
+
   ];
 
   return (
@@ -26,7 +31,7 @@ export function Rail({ mode, onModeChange, teacherName, className }: { mode: Wor
               key={item.id}
               type="button"
               onClick={() => onModeChange(item.id)}
-              aria-label={item.id === "chat" ? "切换到聊天工作台" : item.id === "todos" ? "切换到整体工作台" : "切换到设置"}
+              aria-label={`切换到${item.label}`}
               className={cn(
                 "relative flex min-h-[56px] flex-col items-center justify-center gap-1 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#22c55e]/35",
                 active ? "text-[#006e2f]" : "text-[#8b928c] hover:bg-[#f3f6f4] hover:text-[#3d4a3d]"
@@ -177,4 +182,19 @@ export function MenuButton({ icon, label, onClick }: { icon: React.ReactNode; la
       {label}
     </button>
   );
+}
+
+export function ContactDirectory({ kind, contacts, onOpen, onProfile, onEdit, onCreate, onNavigation }: {
+  kind: Contact["kind"]; contacts: Contact[]; onOpen: (id: string) => void;
+  onProfile: (id: string) => void; onEdit: (id: string) => void; onCreate: () => void; onNavigation: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("active");
+  const rows = contacts.filter(contact => contact.kind === kind && contact.name.includes(query.trim()) && (status === "all" || (contact.status || "active") === status));
+  const label = kind === "student" ? "学生" : "班级";
+  return <div className="h-full overflow-y-auto bg-[#f6f7f6] p-4 sm:p-6"><div className="mx-auto max-w-[1000px] space-y-4">
+    <header className="flex flex-wrap items-center justify-between gap-3"><div><button onClick={onNavigation} className="mb-2 rounded-full bg-white px-3 py-2 text-sm lg:hidden">打开主导航</button><h1 className="text-[25px] font-bold">{label}</h1><p className="mt-1 text-sm text-[#6b746d]">{kind === "student" ? "选一位学生，开始记录课堂或上传学习材料。" : "在班级会话中记录共同内容，个体表现进入对应学生会话。"}</p></div><button onClick={onCreate} className="rounded-full bg-[#22c55e] px-4 py-3 text-sm font-bold text-white">新建{label}</button></header>
+    <div className="flex gap-2"><input aria-label={`搜索${label}`} placeholder={`搜索${label}姓名或名称`} value={query} onChange={e => setQuery(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-[#e3e6e4] bg-white p-3 text-sm" /><select aria-label="服务状态筛选" value={status} onChange={e => setStatus(e.target.value)} className="rounded-xl border p-2 text-sm"><option value="active">在读</option><option value="paused">暂停</option><option value="archived">归档</option><option value="all">全部状态</option></select></div>
+    <section className="divide-y divide-[#edf0ee] overflow-hidden rounded-[20px] bg-white">{rows.map(contact => <article key={contact.id} className="flex flex-wrap items-center justify-between gap-3 p-5"><div className="min-w-0 flex-1"><h2 className="break-words text-base font-bold">{contact.name}</h2><p className="mt-1 text-sm text-[#6b746d]">{[contact.grade, contact.subject, contact.status === "paused" ? "服务暂停" : contact.status === "archived" ? "已归档" : "在读"].filter(Boolean).join(" · ")}</p>{kind === "class" ? <p className="mt-1 text-xs text-[#6b746d]">{contacts.filter(student => student.classIds.includes(contact.id)).length} 位学生</p> : null}</div><div className="flex flex-wrap gap-2"><button onClick={() => onOpen(contact.id)} className="rounded-full bg-[#edf8f1] px-4 py-2 text-sm font-semibold text-[#15803d]">进入会话</button>{kind === "student" ? <button onClick={() => onProfile(contact.id)} className="rounded-full border border-[#bccbb9] px-3 py-2 text-sm">学生档案</button> : null}<button onClick={() => onEdit(contact.id)} className="rounded-full border border-[#bccbb9] px-3 py-2 text-sm">修改资料</button></div></article>)}{!rows.length ? <p className="p-8 text-center text-sm text-[#6b746d]">{query || status !== "active" ? "没有符合条件的结果。" : `还没有${label}，点击右上方新建。`}</p> : null}</section>
+  </div></div>;
 }

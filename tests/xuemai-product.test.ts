@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { TeachingContent } from "../components/xuemai-workbench/TeachingContent";
 import { reportSources, type LearningRecord } from "../lib/xuemai/types";
 import { SkillCard } from "../components/xuemai-workbench/SkillCard";
+import { TaskReviewWorkspace } from "../components/xuemai-workbench/TaskReviewWorkspace";
 import { TaskReviewPanel } from "../components/xuemai-workbench/ContextPanel";
 import { StudentProfileWorkspace } from "../components/xuemai-workbench/StudentDetailModal";
 import { LoginScreen } from "../components/xuemai-workbench/Panels";
@@ -37,30 +38,33 @@ describe("老师阅读与报告范围", () => {
 });
 
 describe("独立演示的操作动线", () => {
-  it("入档后正文最后一段与公式保留，卡片不再以固定高度裁切", () => {
+  it("聊天卡片给摘要，完整正文和末段公式留在详情", () => {
     const text = "## 本次课堂\n\n" + "老师观察到学生完成订正。\n\n".repeat(12) + "\\(\\frac{6}{20}=\\frac{3}{10}\\)\n\n最后一段：下次课继续观察主动检查。";
     const task = toTask(lesson({ archivedAt: "2026-09-05T12:01:00Z", archiveContent: text, content: text }), student);
     const html = renderToStaticMarkup(createElement(SkillCard, { task, conversation: student, onAction: () => {} }));
-    expect(html).toContain("最后一段：下次课继续观察主动检查。");
-    expect(html).toContain('class="katex"');
+    expect(html).toContain("查看完整内容");
+    expect(html).not.toContain("最后一段：下次课继续观察主动检查。");
+    const detail = renderToStaticMarkup(createElement(TaskReviewWorkspace, { task, record: lesson({ content: text, archiveContent: text, archivedAt: "2026-09-05T12:01:00Z" }), autoArchiveLearningEvidence: false, isStudent: true, onBack: () => {}, onRecordAction: async () => undefined }));
+    expect(detail).toContain("最后一段：下次课继续观察主动检查。");
+    expect(detail).toContain('class="katex"');
     expect(html).not.toMatch(/max-h-|line-clamp-|overflow-hidden/);
-    expect(html).toContain("生成家长反馈");
+    expect(html).toContain("检查并反馈");
   });
-  it("记录先入档，反馈复制后再标记已发，每个状态只突出一个操作", () => {
+  it("记录和反馈都进入统一检查面板，入档不抢占首要动作", () => {
     const recordTask = toTask(lesson(), student);
     const feedbackTask = toTask(lesson({ feedback: "家长您好", feedbackStatus: "pending" }), student, true);
     const copiedTask = { ...feedbackTask, status: "copied" as const };
     for (const task of [recordTask, feedbackTask, copiedTask]) expect(task.actions?.filter(action => isPrimarySkillCardAction(task, action))).toHaveLength(1);
-    expect(isPrimarySkillCardAction(recordTask, "archive")).toBe(true);
-    expect(isPrimarySkillCardAction(feedbackTask, "copy_feedback")).toBe(true);
-    expect(isPrimarySkillCardAction(copiedTask, "mark_parent_sent")).toBe(true);
+    expect(isPrimarySkillCardAction(recordTask, "generate_feedback")).toBe(true);
+    expect(isPrimarySkillCardAction(feedbackTask, "generate_feedback")).toBe(true);
+    expect(isPrimarySkillCardAction(copiedTask, "generate_feedback")).toBe(true);
   });
   it("已有反馈入口明确为查看，下一步提示随记录状态推进", () => {
     const record = lesson({ archivedAt: "2026-09-05T12:01:00Z", archiveContent: "已确认", feedback: "家长您好", feedbackStatus: "pending" });
-    expect(getTaskActionLabel(toTask(record, student), "generate_feedback")).toBe("查看家长反馈");
+    expect(getTaskActionLabel(toTask(record, student), "generate_feedback")).toBe("检查并反馈");
     expect(nextClassroomStep()).toContain("整理记录");
-    expect(nextClassroomStep(lesson())).toContain("确认并入档");
-    expect(nextClassroomStep(record)).toContain("复制到微信");
+    expect(nextClassroomStep(lesson())).toContain("课堂记录已保留");
+    expect(nextClassroomStep(record)).toContain("复制发送");
     expect(nextClassroomStep({ ...record, feedbackStatus: "sent" })).toContain("已完成");
   });
   it("已确认的日报突出复制正文，老师修改过的版本能够对照原稿", () => {
@@ -73,13 +77,13 @@ describe("独立演示的操作动线", () => {
   });
   it("日报详情入档后仍能复制正文，提示与当前任务一致", () => {
     const draft = lesson({ kind: "daily" });
-    expect(nextClassroomStep(draft)).toContain("检查学习报告");
+    expect(nextClassroomStep(draft)).toContain("历史记录保留可读");
     const archived = { ...draft, archivedAt: "2026-09-05T12:01:00Z", archiveContent: "日报正文" };
-    expect(nextClassroomStep(archived)).toContain("复制正文");
+    expect(nextClassroomStep(archived)).toContain("历史记录保留可读");
     const html = renderToStaticMarkup(createElement(TaskReviewPanel, { task: toTask(archived, student) }));
     expect(html).toMatch(/<button[^>]*>复制正文<\/button>/);
     expect(html).toContain("报告已入档，可复制正文分享给家长");
-    expect(html.indexOf(">复制正文</button>")).toBeLessThan(html.indexOf("更多操作"));
+    expect(html).not.toContain("生成下次课建议");
   });
   it("已反馈详情不再提示重复发送", () => {
     const task = toTask(lesson({ feedback: "家长您好", feedbackStatus: "sent" }), student, true);

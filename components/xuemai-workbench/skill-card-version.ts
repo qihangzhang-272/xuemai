@@ -48,7 +48,7 @@ export function getTaskCardStatusCopy(status: TaskCard["status"], task?: Pick<Ta
   if (status === "feedback_done") {
     return {
       label: "已反馈",
-      description: "已反馈，待入档"
+      description: "反馈已完成，入档可按需选择"
     };
   }
 
@@ -62,14 +62,14 @@ export function getTaskCardStatusCopy(status: TaskCard["status"], task?: Pick<Ta
 
     return {
       label: "已入档",
-      description: "已入档，将作为后续备课、反馈和月报依据"
+      description: "已入档，将作为后续反馈和月报依据"
     };
   }
 
   if (status === "failed") {
     return {
       label: "生成失败",
-      description: "生成失败，请查看结构化错误"
+      description: "未能整理完成，原文已保存"
     };
   }
 
@@ -94,10 +94,10 @@ export function isPrimarySkillCardAction(task: TaskCard, action: SkillActionId) 
 
 export function getSkillCardActionPriority(task: TaskCard, action: SkillActionId) {
   const feedbackOrder: SkillActionId[] = task.status === "copied"
-    ? ["mark_parent_sent", "copy_feedback", "archive", "make_warmer", "make_shorter", "regenerate"]
-    : ["copy_feedback", "mark_parent_sent", "archive", "make_warmer", "make_shorter", "regenerate"];
-  const learningOrder: SkillActionId[] = ["archive", "generate_feedback", "generate_next_lesson", "save_note", "regenerate"];
-  const evidenceOrder: SkillActionId[] = ["archive", "generate_feedback", "copy_feedback", "add_monthly_material", "generate_next_lesson", "regenerate"];
+    ? ["generate_feedback", "mark_parent_sent", "copy_feedback", "archive", "make_warmer", "make_shorter", "regenerate"]
+    : ["generate_feedback", "copy_feedback", "mark_parent_sent", "archive", "make_warmer", "make_shorter", "regenerate"];
+  const learningOrder: SkillActionId[] = ["generate_feedback", "archive", "generate_next_lesson", "save_note", "regenerate"];
+  const evidenceOrder: SkillActionId[] = ["generate_feedback", "archive", "copy_feedback", "add_monthly_material", "generate_next_lesson", "regenerate"];
 
   const order =
     task.taskType === "monthly_report"
@@ -108,17 +108,17 @@ export function getSkillCardActionPriority(task: TaskCard, action: SkillActionId
         ? learningOrder
         : task.skillId === "analyze_learning_evidence" || task.taskType === "learning_evidence_analysis"
           ? evidenceOrder
-          : ["archive", "generate_feedback", "regenerate"];
+          : ["generate_feedback", "archive", "regenerate"];
 
   const index = order.indexOf(action);
   return index >= 0 ? index : order.length + 1;
 }
 
 export function getTaskActionLabel(task: TaskCard, action: SkillActionId) {
-  if (action === "generate_feedback") return task.structuredResult?.hasFeedback ? "查看家长反馈" : "生成家长反馈";
+  if (action === "generate_feedback") return "检查并反馈";
   if (action === "copy_feedback") return task.taskType === "feedback" ? "复制家长反馈" : "复制正文";
   if (action === "mark_parent_sent") return "标记已发给家长";
-  if (action === "archive") return "确认并入档";
+  if (action === "archive") return "加入学生档案";
   return skillActionLabels[action];
 }
 

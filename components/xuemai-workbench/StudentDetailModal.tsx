@@ -3,8 +3,12 @@ import { cn } from "@/lib/utils";
 import { ArrowLeft, Pencil } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Conversation, TaskCard, TimelineRecord } from "./types";
+import type { Contact } from "@/lib/xuemai/types";
 
 type StudentDetailModalProps = {
+  contact?: Contact;
+  onReport?: () => void;
+  onConversation?: () => void;
   student: Conversation;
   taskCards: TaskCard[];
   timelineRecords: TimelineRecord[];
@@ -16,6 +20,9 @@ type StudentDetailModalProps = {
 };
 
 type StudentProfileWorkspaceProps = {
+  contact?: Contact;
+  onReport?: () => void;
+  onConversation?: () => void;
   composerValue?: string;
   onComposerChange?: (value: string) => void;
   onSend?: () => void;
@@ -44,7 +51,7 @@ export function StudentDetailModal(props: StudentDetailModalProps) {
   );
 }
 
-export function StudentProfileWorkspace({ student, taskCards, timelineRecords, onClose, onOpenTask, onEditProfile }: StudentProfileWorkspaceProps) {
+export function StudentProfileWorkspace({ student, contact, onReport, onConversation, taskCards, timelineRecords, onClose, onOpenTask, onEditProfile }: StudentProfileWorkspaceProps) {
   const [filter, setFilter] = useState<TimelineFilter>("全部");
   const studentTasks = taskCards.filter(task => task.conversationId === student.id);
   const studentRecords = timelineRecords.filter(record => record.conversationId === student.id);
@@ -63,6 +70,9 @@ export function StudentProfileWorkspace({ student, taskCards, timelineRecords, o
           <div className="min-w-0"><h3 className="break-words text-[21px] font-bold text-[#191c1d]">{student.name}</h3><p className="mt-1 text-[12px] text-[#6b746d]">{[student.grade, student.subject, student.className].filter(Boolean).join(" · ")}</p></div>
         </div>
         <p className="mt-4 text-[13px] leading-6 text-[#4e5c52]">已保存 {studentRecords.length} 条记录。课堂表现与学习报告，按时间留在这里。</p>
+        {contact?.serviceRules?.learningGoal ? <p className="mt-2 text-sm leading-6">学习目标：{String(contact.serviceRules.learningGoal)}</p> : null}
+        {contact?.parents?.length ? <details className="mt-2 text-sm leading-6"><summary className="cursor-pointer font-semibold">家长关系</summary>{contact.parents.map(parent => <p key={parent.id}>{parent.name} · {parent.relation}{parent.contact ? ` · ${parent.contact}` : ""}</p>)}</details> : null}
+        <div className="mt-4 flex flex-wrap gap-2">{onConversation ? <button onClick={onConversation} className="rounded-full bg-[#22c55e] px-4 py-2 text-sm font-semibold text-white">回到学生会话</button> : null}{onReport ? <button onClick={onReport} className="rounded-full border border-[#bccbb9] px-4 py-2 text-sm font-semibold">整理学生月报</button> : null}</div>
       </section>
       <section className="mt-4 rounded-[22px] bg-white p-5">
         <h3 className="text-[15px] font-bold text-[#191c1d]">学习记录</h3>

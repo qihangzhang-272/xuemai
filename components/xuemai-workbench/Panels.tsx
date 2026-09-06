@@ -1,3 +1,5 @@
+import { displayTaskTitle } from "./backend-adapter";
+import type { Preferences as StoredPreferences } from "@/lib/xuemai/types";
 import { cn } from "@/lib/utils";
 import {
 AlertCircle,
@@ -585,8 +587,12 @@ export function SettingsPanel({
   teacherProfile,
   conversations,
   taskCards,
-  onOpenTask
+  onOpenTask,
+  storedPreferences,
+  onSavePreferences
 }: {
+  storedPreferences?: StoredPreferences;
+  onSavePreferences?: (value: StoredPreferences) => Promise<boolean>;
   preferences: UserPreferences;
   onChange: (value: UserPreferences) => void;
   onClearData: () => void;
@@ -636,16 +642,8 @@ export function SettingsPanel({
             </div>
           </section>
 
-          <section className="rounded-[24px] bg-white p-5">
-            <h2 className="text-[17px] font-bold text-[#191c1d]">默认反馈语气</h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {(["温和", "严谨", "鼓励型", "简洁型"] as const).map((tone) => (
-                <button key={tone} type="button" onClick={() => onChange({ ...preferences, feedbackTone: tone })} className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${preferences.feedbackTone === tone ? "bg-[#22c55e] text-white" : "bg-[#f3f4f5] text-[#3d4a3d] hover:bg-[#edf8f1]"}`}>
-                  {tone}
-                </button>
-              ))}
-            </div>
-          </section>
+          {storedPreferences && onSavePreferences ? <PreferenceFields value={storedPreferences} onSave={onSavePreferences} /> : <section className="rounded-[24px] bg-white p-5"><h2 className="font-bold">默认反馈语气</h2><div className="mt-3 flex flex-wrap gap-2">{(["温和", "严谨", "鼓励型", "简洁型"] as const).map(tone => <button key={tone} onClick={() => onChange({ ...preferences, feedbackTone: tone })} className="rounded-full bg-[#edf8f1] px-3 py-2 text-sm">{tone}</button>)}</div></section>}
+
         </aside>
 
         <main className="min-w-0 space-y-5">
@@ -664,7 +662,7 @@ export function SettingsPanel({
           </SettingsGroup>
 
           <SettingsGroup title="帮助与支持">
-            <SettingsRow icon={<HelpCircle size={19} />} title="帮助中心" description="选择学生 → 记录课堂 → 检查并入档 → 生成家长反馈" />
+            <SettingsRow icon={<HelpCircle size={19} />} title="帮助中心" description="选择学生 → 记录课堂或上传材料 → 检查结果 → 复制家长反馈" />
             <div className="flex flex-wrap gap-2 px-1 pt-2">
               <button type="button" onClick={onClearData} className="inline-flex h-9 items-center gap-2 rounded-full bg-[#f3f4f5] px-4 text-sm font-bold text-[#3d4a3d] transition hover:bg-[#e8ece9]">
                 <RotateCcw size={15} />
@@ -745,7 +743,7 @@ function NotificationCenterView({ taskCards, onBack, onOpenTask }: { taskCards: 
     <div className="mt-5 flex flex-wrap gap-2">{filters.map(item => <button key={item} type="button" aria-pressed={filter === item} onClick={() => setFilter(item)} className={cn("h-9 rounded-full px-4 text-sm font-bold transition", filter === item ? "bg-[#22c55e] text-white" : "bg-white text-[#5c665f] hover:bg-[#edf8f1]")}>{item}</button>)}</div>
     <div className="mt-4 grid gap-3">{visible.length ? visible.map(({ task, type }) => <section key={task.id} className="rounded-[22px] bg-white p-4">
       <div className="flex items-center gap-2"><span className="rounded-full bg-[#edf8f1] px-2 py-0.5 text-[11px] font-bold text-[#15803d]">{type}</span><time dateTime={task.updatedAt} className="text-xs text-[#8a948d]">{new Date(task.updatedAt).toLocaleString("zh-CN")}</time></div>
-      <h2 className="mt-2 text-[16px] font-bold text-[#191c1d]">{task.targetName} · {task.title}</h2>
+      <h2 className="mt-2 text-[16px] font-bold text-[#191c1d]">{displayTaskTitle(task)}</h2>
       <p className="mt-1 text-[13px] leading-5 text-[#66716a]">{task.status === "failed" ? task.detail : task.status === "running" ? "正在整理，完成后可查看。" : task.status === "archived" ? "已确认入档，可查看保留的正文。" : task.status === "feedback_done" ? "老师已标记发给家长。" : "内容已保存，可打开检查并继续处理。"}</p>
       <div className="mt-3 flex justify-end border-t border-[#eef1ef] pt-3"><button type="button" onClick={() => onOpenTask(task)} className="h-8 rounded-full bg-[#22c55e] px-4 text-xs font-bold text-white">查看记录</button></div>
     </section>) : <p className="rounded-[22px] bg-white p-6 text-sm text-[#6b746d]">{filter === "全部" ? "还没有记录。先选择一位学生，记下这节课的表现。" : `暂无${filter}记录。`}</p>}</div>
@@ -852,4 +850,11 @@ function getToneTextClass(tone: PanelTone) {
     gray: "text-[#6b7280]"
   };
   return tones[tone];
+}
+
+function PreferenceFields({ value, onSave }: { value: StoredPreferences; onSave: (value: StoredPreferences) => Promise<boolean> }) {
+  const [draft, setDraft] = useState(value);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  return <form className="space-y-3 rounded-[24px] bg-white p-5" onSubmit={async event => { event.preventDefault(); setBusy(true); setNotice(""); try { setNotice(await onSave(draft) ? "偏好已保存，下次生成反馈时生效。" : "保存未完成，请重试。"); } finally { setBusy(false); } }}><h2 className="text-[17px] font-bold">教学与反馈偏好</h2>{([ ["subject", "常教学科"], ["grade", "常教学段 / 年级"], ["address", "常用家长称呼"] ] as const).map(([key, label]) => <label key={key} className="block text-sm">{label}<input className="mt-1 w-full rounded-xl border p-2" required={key !== "grade"} maxLength={30} value={draft[key]} onChange={event => setDraft(current => ({ ...current, [key]: event.target.value }))} /></label>)}<label className="block text-sm">反馈语气<select className="mt-1 w-full rounded-xl border p-2" value={draft.tone} onChange={e => setDraft(current => ({ ...current, tone: e.target.value }))}>{Array.from(new Set([draft.tone, "简洁", "温和", "专业"])).map(tone => <option key={tone}>{tone}</option>)}</select></label><label className="block text-sm">反馈长度<select className="mt-1 w-full rounded-xl border p-2" value={draft.length || "适中"} onChange={e => setDraft(current => ({ ...current, length: e.target.value as StoredPreferences["length"] }))}>{["简短", "适中", "详细"].map(length => <option key={length}>{length}</option>)}</select></label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.parentSummaryFirst !== false} onChange={e => setDraft(current => ({ ...current, parentSummaryFirst: e.target.checked }))} />家长反馈先给简要总结</label><button disabled={busy} className="rounded-full bg-[#22c55e] px-4 py-2 text-sm font-bold text-white disabled:opacity-40">{busy ? "正在保存…" : "保存偏好"}</button>{notice ? <p role="status" className="text-sm text-[#15803d]">{notice}</p> : null}</form>;
 }

@@ -91,7 +91,7 @@ export function ChatHeader({
         {isAssistant ? null : (
           <button type="button" onClick={openProfileContext} className="min-h-9 shrink-0 rounded-full bg-[#f2f6f3] px-2.5 text-[12px] font-bold hover:bg-[#eaf8ef]">{conversation.kind === "class" ? "班级资料" : "学生档案"}</button>
         )}
-        {!isAssistant && onOpenReport ? <button type="button" onClick={onOpenReport} className="min-h-9 shrink-0 rounded-full bg-[#f2f6f3] px-2.5 text-[12px] font-bold hover:bg-[#eaf8ef]">学习报告</button> : null}
+        {!isAssistant && onOpenReport ? <button type="button" onClick={onOpenReport} className="min-h-9 shrink-0 rounded-full bg-[#f2f6f3] px-2.5 text-[12px] font-bold hover:bg-[#eaf8ef]">学生月报</button> : null}
       </div>
     </header>
   );
