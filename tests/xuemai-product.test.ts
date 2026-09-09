@@ -8,7 +8,7 @@ import { TaskReviewWorkspace } from "../components/xuemai-workbench/TaskReviewWo
 import { TaskReviewPanel } from "../components/xuemai-workbench/ContextPanel";
 import { StudentProfileWorkspace } from "../components/xuemai-workbench/StudentDetailModal";
 import { LoginScreen } from "../components/xuemai-workbench/Panels";
-import { toTask, nextClassroomStep } from "../components/xuemai-workbench/backend-adapter";
+import { toTask } from "../components/xuemai-workbench/backend-adapter";
 import { isPrimarySkillCardAction, getTaskActionLabel, getSkillCardVersionMeta } from "../components/xuemai-workbench/skill-card-version";
 import type { Conversation, TimelineRecord } from "../components/xuemai-workbench/types";
 
@@ -59,13 +59,9 @@ describe("独立演示的操作动线", () => {
     expect(isPrimarySkillCardAction(feedbackTask, "generate_feedback")).toBe(true);
     expect(isPrimarySkillCardAction(copiedTask, "generate_feedback")).toBe(true);
   });
-  it("已有反馈入口明确为查看，下一步提示随记录状态推进", () => {
+  it("已有反馈仍可从课堂记录进入检查面板", () => {
     const record = lesson({ archivedAt: "2026-09-05T12:01:00Z", archiveContent: "已确认", feedback: "家长您好", feedbackStatus: "pending" });
     expect(getTaskActionLabel(toTask(record, student), "generate_feedback")).toBe("检查并反馈");
-    expect(nextClassroomStep()).toContain("整理记录");
-    expect(nextClassroomStep(lesson())).toContain("课堂记录已保留");
-    expect(nextClassroomStep(record)).toContain("复制发送");
-    expect(nextClassroomStep({ ...record, feedbackStatus: "sent" })).toContain("已完成");
   });
   it("已确认的日报突出复制正文，老师修改过的版本能够对照原稿", () => {
     const report = toTask(lesson({ kind: "daily", archivedAt: "2026-09-05T12:01:00Z", archiveContent: "日报正文" }), student);
@@ -75,11 +71,9 @@ describe("独立演示的操作动线", () => {
     expect(getSkillCardVersionMeta(edited).isEdited).toBe(true);
     expect(getSkillCardVersionMeta(edited).editLabel).toBe("老师已修改");
   });
-  it("日报详情入档后仍能复制正文，提示与当前任务一致", () => {
+  it("日报详情入档后仍能复制正文", () => {
     const draft = lesson({ kind: "daily" });
-    expect(nextClassroomStep(draft)).toContain("历史记录保留可读");
     const archived = { ...draft, archivedAt: "2026-09-05T12:01:00Z", archiveContent: "日报正文" };
-    expect(nextClassroomStep(archived)).toContain("历史记录保留可读");
     const html = renderToStaticMarkup(createElement(TaskReviewPanel, { task: toTask(archived, student) }));
     expect(html).toMatch(/<button[^>]*>复制正文<\/button>/);
     expect(html).toContain("报告已入档，可复制正文分享给家长");

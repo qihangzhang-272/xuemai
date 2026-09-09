@@ -69,7 +69,7 @@ export function StudentProfileWorkspace({ student, contact, onReport, onConversa
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#eaf8ef] text-[20px] font-bold text-[#14883b]">{student.avatar}</div>
           <div className="min-w-0"><h3 className="break-words text-[21px] font-bold text-[#191c1d]">{student.name}</h3><p className="mt-1 text-[12px] text-[#6b746d]">{[student.grade, student.subject, student.className].filter(Boolean).join(" · ")}</p></div>
         </div>
-        <p className="mt-4 text-[13px] leading-6 text-[#4e5c52]">已保存 {studentRecords.length} 条记录。课堂表现与学习报告，按时间留在这里。</p>
+        <p className="mt-4 text-[13px] leading-6 text-[#4e5c52]">{studentRecords.length} 条入档记录</p>
         {contact?.serviceRules?.learningGoal ? <p className="mt-2 text-sm leading-6">学习目标：{String(contact.serviceRules.learningGoal)}</p> : null}
         {contact?.parents?.length ? <details className="mt-2 text-sm leading-6"><summary className="cursor-pointer font-semibold">家长关系</summary>{contact.parents.map(parent => <p key={parent.id}>{parent.name} · {parent.relation}{parent.contact ? ` · ${parent.contact}` : ""}</p>)}</details> : null}
         <div className="mt-4 flex flex-wrap gap-2">{onConversation ? <button onClick={onConversation} className="rounded-full bg-[#22c55e] px-4 py-2 text-sm font-semibold text-white">回到学生会话</button> : null}{onReport ? <button onClick={onReport} className="rounded-full border border-[#bccbb9] px-4 py-2 text-sm font-semibold">整理学生月报</button> : null}</div>

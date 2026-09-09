@@ -17,7 +17,7 @@ import { SideChatPanel } from "./SideChatPanel";
 import { StudentDetailModal } from "./StudentDetailModal";
 import { TaskReviewWorkspace } from "./TaskReviewWorkspace";
 import { WorkOverviewPanel } from "./WorkOverviewPanel";
-import { backend, emptyState as initialState, isFeedback, nextClassroomStep, recordId, toChatState } from "./backend-adapter";
+import { backend, emptyState as initialState, isFeedback, recordId, toChatState } from "./backend-adapter";
 import { nowIso, uid } from "./chat-engine";
 import type { ActiveDrawer, Conversation, CreationMode, CreationPayload, Message, SideChatContextOption, SideChatSession, SkillAction, TaskCard, TeacherProfile, TimelineRecord, UserPreferences, WorkspaceMode } from "./types";
 
@@ -295,7 +295,7 @@ export function XuemaiWorkbenchApp() {
       return;
     }
 
-    showToast("这个侧聊绑定的是当前会话，没有单独来源卡片");
+    showToast("未选择记录");
   }
 
   function startSideWorkspaceResize(event: ReactPointerEvent<HTMLDivElement>) {
@@ -541,7 +541,7 @@ async function sendSideChatMessage() {
     const value = isFeedback(task) ? record?.feedback : record?.content;
     if (!value) { showToast("请等待结果生成后再复制。"); return; }
     if (hasOutcomePromise(value)) { showToast("反馈含有结果保证或过度承诺，请修改后再发送。"); return; }
-    try { await navigator.clipboard.writeText(value); if (isFeedback(task) && task.status !== "feedback_done") setTaskCards(items => items.map(item => item.id === task.id ? { ...item, status: "copied" } : item)); showToast(isFeedback(task) ? "已复制，请到微信粘贴。发送后回来标记已发。" : "正文已复制。"); }
+    try { await navigator.clipboard.writeText(value); if (isFeedback(task) && task.status !== "feedback_done") setTaskCards(items => items.map(item => item.id === task.id ? { ...item, status: "copied" } : item)); showToast("已复制"); }
     catch { showToast("无法访问剪贴板，请手动复制正文。"); }
   }
 
@@ -606,14 +606,14 @@ function openSkillReview(task: TaskCard, intent: "detail" | "feedback" | "archiv
 
     const skill = quickSkills.find(item => getSkillDisplayLabel(item, activeConversation) === task) ?? getSkillByTriggerLabel(task, subjectType) ?? getSkillsForSubject(subjectType).find((item) => item.label === task);
     if (!skill) {
-      showToast("这个教学任务还没有注册到当前会话");
+      showToast("未找到这条记录，请刷新后重试。");
       return;
     }
 
     if (skill.id === "monthly_report") { setReportOpen(true); return; }
     if (skill.id === "generate_feedback" && !input.trim() && !composerAttachments.length) {
       const source = latestRecord(activeConversation.id);
-      if (source) { const card = taskById.get(source.id); if (card) openSkillReview(card); showToast("请先检查这条课堂记录，再点击生成微信反馈。"); return; }
+      if (source) { const card = taskById.get(source.id); if (card) openSkillReview(card); showToast("请检查课堂记录后整理家长反馈。"); return; }
     }
     const selecting = activeSkillId !== skill.id;
     setActiveSkillId(selecting ? skill.id : null);
@@ -669,7 +669,7 @@ function openSkillReview(task: TaskCard, intent: "detail" | "feedback" | "archiv
     showToast(credentials.mode === "register" ? "账号已建立，从第一位学生开始。" : "欢迎回来");
   }
   function handlePreferences(value: UserPreferences) {
-    if (value.autoArchiveLearningEvidence) { showToast("学习档案需要老师逐项确认，不能自动入档。"); return; }
+    if (value.autoArchiveLearningEvidence) { showToast("请选择要入档的内容。"); return; }
     setPreferences(value);
     const previous = snapshotRef.current?.preferences;
     if (previous) void performBackend(() => backend("settings", { ...previous, tone: value.feedbackTone }, "PATCH"), "偏好已保存。");
@@ -698,7 +698,7 @@ function openSkillReview(task: TaskCard, intent: "detail" | "feedback" | "archiv
         onOpenReport={() => setReportOpen(true)}
         onOpenMobileNavigation={() => setIsMobileNavigationOpen(true)}
       />
-      {!isAutomationAssistant ? <p className="shrink-0 border-b border-[#edf0ee] bg-[#edf8f1] px-3 py-2 text-[12px] leading-5 text-[#3d4a3d] sm:px-6"><span className="font-bold">下一步：</span>{activeConversation.kind === "class" ? "这里记录全班共同教学内容；个人表现请先选择学生再填写。" : nextClassroomStep(snapshotRef.current?.records.filter(record => record.contactId === activeConversation.id).at(-1))}</p> : null}
+
       <div className="xuemai-chat-bg relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="xuemai-scrollbar min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto flex w-full max-w-[820px] flex-col gap-3 px-3 pb-5 pt-4 sm:px-6">

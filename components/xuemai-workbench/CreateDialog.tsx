@@ -41,7 +41,6 @@ export function CreateDialog({ mode, onClose, onCreate, classOptions = [], initi
       </header>
       <div className="space-y-4 bg-[#f7f8f7] p-4">
         <section className="rounded-[18px] bg-white p-4">
-          <p className="mb-3 text-[13px] leading-6 text-[#5c665f]">{isStudent ? "先填姓名、年级和科目，创建后就可以记录这节课。" : "班级用于整理共同教学内容；个人表现记在学生档案里。"}</p>
           <TextRow label={isStudent ? "学生姓名" : "班级名称"} value={payload.name} onChange={value => updateField("name", value)} placeholder={isStudent ? "填写学生姓名" : "填写班级名称"} required />
           <SelectRow label="科目" value={payload.subject} options={subjectOptions.includes(payload.subject) ? subjectOptions : [payload.subject, ...subjectOptions]} onChange={value => updateField("subject", value)} />
           <SelectRow label={isStudent ? "年级" : "年级（选填）"} value={payload.grade} options={gradeOptions} empty={isStudent ? "请选择年级" : "暂不填写"} onChange={value => updateField("grade", value)} />

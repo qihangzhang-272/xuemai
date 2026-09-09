@@ -101,7 +101,7 @@ export function EmptyConversationState({ name, onUpload, onStart, firstStudent =
   return <div className="mx-auto mt-12 w-full max-w-[420px] rounded-[18px] bg-white/92 p-4 text-center">
     <BookOpenCheck className="mx-auto text-[#22c55e]" size={24} />
     <h2 className="mt-3 text-xl font-bold text-[#191c1d]">{firstStudent ? "从第一位学生开始" : "记下" + name + "的这节课"}</h2>
-    <p className="mt-2 text-[13px] font-medium leading-6 text-[#3d4a3d]">{firstStudent ? "建立学生档案后，就能记录课堂表现、准备家长反馈。" : "写下学了什么、学生怎样完成。学脉帮你整理，检查后就能生成家长反馈。"}</p>
+    <p className="mt-2 text-[13px] font-medium leading-6 text-[#3d4a3d]">{firstStudent ? "添加姓名、年级和科目，开始记录课堂。" : "写下本次学习内容和学生表现，或上传作业照片。"}</p>
     <div className="mt-4 flex flex-wrap justify-center gap-2">
       <ActionButton active onClick={onStart}>{firstStudent ? "建立第一位学生档案" : "开始记录课堂"}</ActionButton>
       {!firstStudent ? <ActionButton onClick={onUpload}>添加学习材料</ActionButton> : null}

@@ -23,18 +23,6 @@ export async function backend<T>(path: string, body?: unknown, method = "POST"):
 export function displayTaskTitle(task: Pick<TaskCard, "title" | "targetName">) { return task.title.includes(task.targetName) ? task.title : `${task.targetName} · ${task.title}`; }
 export function recordId(task: Pick<TaskCard, "id">) { return task.id.replace(/:feedback$/, ""); }
 export function isFeedback(task: Pick<TaskCard, "id">) { return task.id.endsWith(":feedback"); }
-export function nextClassroomStep(record?: LearningRecord) {
-  if (!record) return "记下课堂内容与学生表现，点击「整理记录」开始。";
-  if (record.status === "running") return "正在整理本次记录，请稍候。";
-  if (record.status === "failed") return "这条记录未整理完成，原文已保存。打开失败记录后可以重试。";
-  if (!record.content) return "原文已保存，点击「重新生成」整理课堂记录。";
-  if (record.kind === "prep" || record.kind === "daily") return "历史记录保留可读，可以继续记录课堂内容。";
-  if (record.kind === "monthly") return record.reportStatus === "final" ? "月报已定稿，可以整理家长版反馈。" : "检查月报正文和素材，确认后定稿。";
-  if (record.evidence !== "observed") return "请补充学生的实际作答、订正或课堂表现，再重新整理。";
-  if (record.feedbackStatus === "sent") return "本次反馈已完成，可以继续记录下一节课。";
-  if (record.feedback) return "家长反馈草稿已保留，检查后可以复制发送。";
-  return "课堂记录已保留。需要家长反馈时，点击「检查并反馈」；入档可按需选择。";
-}
 export const recordSkill: Record<LearningRecord["kind"], SkillId> = {
   record: "update_learning_record", analysis: "analyze_learning_evidence", prep: "next_lesson_plan", monthly: "monthly_report", daily: "monthly_report",
 };
