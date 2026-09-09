@@ -2,10 +2,10 @@
 
 ## 基本流程
 
-1. 从 `main` 创建目的明确的分支。
+1. 从仓库默认分支（当前为 `codex/xuemai-independent`）创建目的明确的分支。
 2. 一次 Pull Request 只处理一个主题。
 3. 按[代码验收标准](docs/development/code-acceptance-criteria.md)完成自检和验收证据。
-4. 通过 Pull Request 审核后合入 `main`，不要直接向 `main` 强制推送。
+4. 通过 Pull Request 审核后合入默认分支，不要向默认分支强制推送。
 
 ## 分支和提交
 
@@ -13,7 +13,7 @@
 - 修复分支：`fix/short-description`
 - 文档分支：`docs/short-description`
 - 整理分支：`chore/short-description`
-- 提交信息使用简短动词短语，例如 `docs: organize product documentation`。
+- 提交信息使用中文，格式为 `YYYY-MM-DD HH:mm｜具体变更及原因`，例如 `2026-09-08 21:30｜补充启动步骤便于首次运行`。
 
 自动化协作者可以使用其工具要求的分支前缀，但仍应保持一个分支只处理一个主题。
 
@@ -32,7 +32,7 @@
 
 ## 文档规则
 
-- 当前 PRD 固定路径为 `docs/product/product-requirements.md`。
+- 当前需求依据为 `docs/implementation/source-prd.md`，实际交付范围以 [AGENTS.md](AGENTS.md) 和其引用的范围文档为准。
 - 版本号保留在文档内容中，不修改文件名。
 - 正式文档必须加入 `docs/README.md`。
 - 临时截图、个人日志、审计过程和生成产物不要提交到正式文档目录。
