@@ -1,8 +1,10 @@
-# 学脉 · 独立教学服务工作台
+# 学脉
 
-> **当前范围（2026-09-06）：按会议最终 MVP、PRD 核心规则与原前端完成简洁演示。** 主线是记录/分析与家长反馈，档案和月报作为次级能力。用户最新要求“结合会议、PRD 和前端，不要太复杂”；完整取舍见 [本次交付范围](docs/implementation/2026-09-06-会议与PRD交付范围.md)。原始 [PRD V5.4.1](docs/implementation/source-prd.md) 保持不变，本次不宣称全量 PRD 已交付。
+面向老师的课堂记录与家长反馈工作台。选择学生，记录本次学习内容和表现，检查并编辑结果，再复制反馈发给家长。支持上传学习材料、学生档案和单学生月报。
 
-直接使用用户提供的学脉 Web / Mobile 前端源码。唯一工作台为 `components/xuemai-workbench/XuemaiWorkbenchApp.tsx`，自写的 `components/xuemai-live` 前端已删除。保留原版组件、配色和视觉语言。按演示需求精简操作层级与表单，详情使用单列完整阅读；不另建前端。
+采用原版学脉 Web / Mobile 前端，保留组件、配色和视觉语言。独立账号、数据库、上传目录与服务；基于 Next.js、React 和 Node.js 内置 SQLite。
+
+当前为单机演示版本。功能边界见 [交付范围](docs/implementation/2026-09-06-会议与PRD交付范围.md)，需求原文见 [PRD V5.4.1](docs/implementation/source-prd.md)。
 
 演示动线：选择学生 → 记录课堂 / 上传材料 → 检查完整结果 → 整理并编辑家长反馈 → 复制到微信 → 手工标记已发。课堂记录自动保留在会话；入档默认不勾选，老师选择具体内容并再次确认。反馈不要求先入档。
 
@@ -15,6 +17,8 @@
 需要 **Node.js 24 或更新版本**，使用其内置 SQLite，不需要安装 PostgreSQL、Redis 或 Supabase。
 
 ```powershell
+git clone https://github.com/qihangzhang-272/xuemai.git
+cd xuemai
 npm ci
 Copy-Item .env.example .env.local
 # 编辑 .env.local，填写自己的模型及文档解析配置
@@ -26,7 +30,7 @@ npm start
 
 开发使用 `npm run dev`。不要同时运行开发实例与生产实例，也不要在开发实例运行时重建 `.next`。
 
-这台电脑上的 `.env.local` 已复用现有项目的千问 / MinerU 服务配置。源码压缩包不会携带凭据。原体验账号在 Git 忽略的 `.local-access.txt` 中；本次准备的干净演示账号在 `.demo-access.txt` 中。页面中“演示”学生及课堂记录均为合成测试内容。正式使用可以在登录页创建一个自己的学脉账号，账号之间数据隔离。
+首次运行后在登录页创建学脉账号，账号之间数据隔离。仓库不携带模型密钥、登录凭据、数据库或上传材料；需要自行配置 `.env.local`。本机演示账号存于 Git 忽略的 `.demo-access.txt`，其中“演示”学生及记录均为合成测试内容。
 
 ## 已实现的工作流
 
